@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, rgba(120,8,12,.45), transparent 60%), #050102;
+    color: #f3d6d4; font-family: system-ui, Roboto, sans-serif; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 22px; padding: 28px; text-align: center; }
+  .brand { letter-spacing: .5em; color: #d6aa55; font-size: 16px; }
+  p { color: #9a6a68; line-height: 1.5; font-size: 15px; max-width: 320px; }
+  button { width: 100%; max-width: 320px; padding: 18px; border-radius: 14px; font-size: 17px; border: 0; }
+  .wake { background: #e3242b; color: #fff; box-shadow: 0 0 30px rgba(227,36,43,.35); }
+  .retry { background: #120406; color: #f3d6d4; border: 1px solid #2a0b0e; }
+  .link { background: none; color: #9a6a68; font-size: 14px; padding: 8px; }
+  #msg { color: #d6aa55; min-height: 1.5em; }
+</style></head>
+<body>
+  <div class="brand">J.A.R.V.I.S.</div>
+  <p>Je n'arrive pas à joindre ton PC. Il est peut-être en vraie veille, ou ton téléphone n'est pas sur le Wi-Fi de la maison.</p>
+  <button class="wake" id="wake">⏻ Rallumer le PC</button>
+  <button class="retry" id="retry">Réessayer</button>
+  <div id="msg"></div>
+  <button class="link" id="settings">Changer l'adresse du PC ou le code</button>
+<script>
+  const A = window.JarvisAndroid;
+  const msg = document.getElementById("msg");
+  document.getElementById("retry").onclick = () => A.reload();
+  document.getElementById("settings").onclick = () => A.settings();
+  document.getElementById("wake").onclick = () => {
+    msg.textContent = A.wake();
+    let n = 0;
+    const t = setInterval(() => {
+      n++;
+      msg.textContent = "Le PC démarre… (" + (n * 5) + " s)";
+      if (n === 4 || n === 8 || n === 12 || n === 18) A.reload();
+      if (n > 18) { clearInterval(t); msg.textContent = "Toujours rien. Vérifie le Wi-Fi, puis réessaie."; }
+    }, 5000);
+  };
+</script>
+</body></html>

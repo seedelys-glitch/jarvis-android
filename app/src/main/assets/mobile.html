@@ -365,7 +365,16 @@ $("pcSleep").addEventListener("click", () => { if (!PC) { add("Le PC est déjà 
 $("sleepGo").addEventListener("click", async () => { $("sleepModal").style.display = "none"; try { const r = await pcApi("/api/pc_sleep", {}); (r.replies || []).forEach(t => { add(t, "jarvis"); say(t); }); } catch (e) {} setTimeout(detectPc, 8000); });
 $("pcWake").addEventListener("click", () => {
   const m = A.wake(); add(m, "jarvis"); say(m);
-  let n = 0; const t = setInterval(async () => { n++; if (await detectPc()) { clearInterval(t); add("Le PC est réveillé et connecté.", "jarvis"); refresh(); } else if (n > 15) clearInterval(t); }, 6000);
+  let n = 0; const t = setInterval(async () => {
+    n++;
+    if (await detectPc()) {
+      clearInterval(t);
+      // le PC répond : on lance directement le bureau (écrans, graphiques, musique, voix), sans clap
+      try { await pcApi("/api/cmd", { text: "réveille-toi" }); } catch (e) {}
+      const m2 = "Le PC est réveillé, j'ouvre ton bureau."; add(m2, "jarvis"); say(m2);
+      refresh();
+    } else if (n > 20) { clearInterval(t); add("Le PC ne répond pas encore. Réessaie dans un moment.", "jarvis"); }
+  }, 5000);
 });
 
 // micro : reconnaissance vocale du téléphone (marche aussi en 4G)

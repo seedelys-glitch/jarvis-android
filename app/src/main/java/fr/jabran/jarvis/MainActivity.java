@@ -235,13 +235,23 @@ public class MainActivity extends Activity {
         if (!ip.isEmpty()) targets.add(ip);
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setBroadcast(true);
+            // depuis la 5G : vers la box (qui renvoie le port 9 au PC)
+            String pub = prefs.getString("public_ip", "");
+            if (!pub.isEmpty()) {
+                try {
+                    InetAddress box = InetAddress.getByName(pub);
+                    for (int k = 0; k < 5; k++) socket.send(new DatagramPacket(packet, packet.length, box, 9));
+                } catch (Exception ignored) { }
+            }
             for (String t : targets) {
-                InetAddress addr = InetAddress.getByName(t);
-                for (int port : new int[]{9, 7}) {
-                    for (int k = 0; k < 3; k++) {
-                        socket.send(new DatagramPacket(packet, packet.length, addr, port));
+                try {
+                    InetAddress addr = InetAddress.getByName(t);
+                    for (int port : new int[]{9, 7}) {
+                        for (int k = 0; k < 3; k++) {
+                            socket.send(new DatagramPacket(packet, packet.length, addr, port));
+                        }
                     }
-                }
+                } catch (Exception ignored) { }
             }
         }
     }
@@ -267,7 +277,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String findPc() {
             String ip = prefs.getString("ip", "");
-            if (reachable(ip, PC_PORT, 1500)) return "http://" + ip + ":" + PC_PORT;
+            if (reachable(ip, PC_PORT, 1500)) {
+                // à la maison : on retient l'adresse internet de la box (pour rallumer le PC depuis la 5G)
+                new Thread(() -> {
+                    String[] r = httpCall("GET", "https://api.ipify.org", null, "", 8000);
+                    if ("200".equals(r[0]) && r[1].trim().matches("[0-9.]+")) {
+                        prefs.edit().putString("public_ip", r[1].trim()).apply();
+                    }
+                }).start();
+                return "http://" + ip + ":" + PC_PORT;
+            }
             String ts = prefs.getString("tailscale", "");
             if (reachable(ts, PC_PORT, 2500)) return "http://" + ts + ":" + PC_PORT;
             return "";

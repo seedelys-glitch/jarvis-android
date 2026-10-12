@@ -16,7 +16,7 @@
 </style></head>
 <body>
   <div class="brand">J.A.R.V.I.S.</div>
-  <p>Je n'arrive pas à joindre ton PC. Il est peut-être en vraie veille, ou ton téléphone n'est pas sur le Wi-Fi de la maison.</p>
+  <p>Je n'arrive pas à joindre ton PC<span id="ip"></span>. Il est peut-être en vraie veille, ou ton téléphone n'est pas sur le Wi-Fi de la maison. Vérifie aussi l'adresse du PC (bouton en bas).</p>
   <button class="wake" id="wake">⏻ Rallumer le PC</button>
   <button class="retry" id="retry">Réessayer</button>
   <div id="msg"></div>
@@ -24,6 +24,7 @@
 <script>
   const A = window.JarvisAndroid;
   const msg = document.getElementById("msg");
+  try { const ip = A.pcIp(); if (ip) document.getElementById("ip").textContent = " (" + ip + ")"; } catch (e) {}
   document.getElementById("retry").onclick = () => A.reload();
   document.getElementById("settings").onclick = () => A.settings();
   document.getElementById("wake").onclick = () => {

@@ -60,6 +60,11 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setCacheMode(WebSettings.LOAD_NO_CACHE);
         web.addJavascriptInterface(new Bridge(), "JarvisAndroid");
+        web.setOnLongClickListener(v -> {           // appui long : changer l'adresse du PC / le code
+            WebView.HitTestResult h = web.getHitTestResult();
+            if (h.getType() == WebView.HitTestResult.UNKNOWN_TYPE) { showSettings(false); return true; }
+            return false;
+        });
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -118,9 +123,27 @@ public class MainActivity extends Activity {
                 + "/app#code=" + code + "&android=1";
     }
 
+    /** Vérifie vite (3 s) si le PC répond, au lieu d'attendre 30 s une page d'erreur. */
     private void load() {
         triedHttp = false;
-        web.loadUrl(url(true));
+        String ip = prefs.getString("ip", "");
+        new Thread(() -> {
+            boolean https = reachable(ip, HTTPS_PORT), http = !https && reachable(ip, HTTP_PORT);
+            runOnUiThread(() -> {
+                if (https) web.loadUrl(url(true));
+                else if (http) { triedHttp = true; web.loadUrl(url(false)); }
+                else web.loadUrl("file:///android_asset/hors-ligne.html");
+            });
+        }).start();
+    }
+
+    private static boolean reachable(String ip, int port) {
+        try (java.net.Socket so = new java.net.Socket()) {
+            so.connect(new java.net.InetSocketAddress(ip, port), 3000);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override

@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<style>
+  :root {
+    --bg: #050102; --panel: #120406; --line: #2a0b0e;
+    --red: #e3242b; --red-hot: #ff4a3d; --gold: #d6aa55;
+    --text: #f3d6d4; --muted: #9a6a68;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    background: radial-gradient(ellipse at 50% -10%, rgba(120,8,12,.45), transparent 60%), var(--bg); }
+  header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { font-size: 15px; letter-spacing: .5em; color: var(--gold); }
+  .state { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3a1214; }
+  .dot.on { background: var(--red-hot); box-shadow: 0 0 8px var(--red-hot); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .stat b { display: block; font-size: 10px; font-weight: 500; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  .stat span { display: block; font-size: 15px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gold { color: var(--gold); }
+  .up { color: #5fd38a; } .down { color: var(--red-hot); }
+  main { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 85%; padding: 10px 13px; border-radius: 14px; font-size: 15px; line-height: 1.4; white-space: pre-wrap; }
+  .me { align-self: flex-end; background: #3a0a0e; border: 1px solid #5a1218; border-bottom-right-radius: 4px; }
+  .jarvis { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .jarvis::before { content: "JARVIS"; display: block; font-size: 9px; letter-spacing: .3em; color: var(--gold); margin-bottom: 4px; }
+  .typing { color: var(--muted); font-style: italic; }
+  .quick { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; border-top: 1px solid var(--line); scrollbar-width: none; }
+  .quick::-webkit-scrollbar { display: none; }
+  .quick button { flex: none; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 999px; padding: 9px 14px; font-size: 13px; }
+  .quick button.accent { border-color: #6a1a1f; color: var(--red-hot); }
+  .quick button.goldb { border-color: #5a4320; color: var(--gold); }
+  form { display: flex; gap: 8px; padding: 8px 16px 14px; }
+  input[type=text], input[type=password] { flex: 1; min-width: 0; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; font-size: 16px; outline: none; }
+  input:focus { border-color: var(--red); }
+  form button { background: var(--red); color: #fff; border: 0; border-radius: 12px; padding: 0 18px; font-size: 15px; }
+  .hint { font-size: 11px; color: var(--muted); padding: 0 16px 6px; }
+  .hint a, .banner a { color: var(--gold); }
+  .banner { display: none; margin: 10px 16px 0; padding: 10px 12px; border: 1px solid #5a4320; border-radius: 10px;
+    font-size: 13px; line-height: 1.45; background: #1a1206; }
+  #mic { width: 50px; flex: none; padding: 0; background: var(--panel); border: 1px solid #6a1a1f;
+    color: var(--red-hot); font-size: 20px; border-radius: 12px; }
+  #mic.rec { background: var(--red); color: #fff; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(227,36,43,.25); } }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: none; align-items: flex-end; }
+  .sheet { width: 100%; background: var(--panel); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom)); font-size: 14px; line-height: 1.55; }
+  .sheet h3 { color: var(--gold); font-weight: 500; letter-spacing: .1em; margin-bottom: 10px; }
+  .sheet code { color: var(--text); background: #000; padding: 2px 6px; border-radius: 6px; user-select: all; }
+  .sheet .row { display: flex; gap: 10px; margin-top: 16px; }
+  .sheet .row button { flex: 1; padding: 13px; border-radius: 12px; border: 1px solid var(--line);
+    background: #000; color: var(--text); font-size: 15px; }
+  .news { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: #000; }
+  .news .meta { font-size: 11px; color: var(--muted); letter-spacing: .05em; display: flex; gap: 8px; align-items: center; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; letter-spacing: .1em; text-transform: uppercase; }
+  .b-fort { background: var(--red); color: #fff; } .b-moyen { background: #5a4320; color: #f3e1b9; } .b-faible { background: #222; color: #888; }
+  .news .res { margin-top: 6px; color: var(--text); font-weight: 500; }
+  .news .tr { margin-top: 6px; color: #d9b9b6; font-size: 13px; }
+  .news details { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .sheet .row button.danger { background: var(--red); color: #fff; border: 0; }
+  #pinScreen { position: fixed; inset: 0; background: var(--bg); display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }
+  #pinScreen p { color: var(--muted); font-size: 14px; max-width: 320px; line-height: 1.5; }
+  #pinScreen input { width: 180px; text-align: center; letter-spacing: .5em; font-size: 24px; flex: none; }
+  .toggle { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 5px 8px; font-size: 12px; }
+
+  .toggle { margin-left: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="brand">J.A.R.V.I.S.</div>
+    <div class="state"><span class="dot" id="dot"></span><span id="state">…</span></div>
+    <button class="toggle" id="voiceBtn" type="button">🔊</button>
+    <button class="toggle" id="setBtn" type="button">⚙</button>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>Gold</b><span id="gold" class="gold">—</span></div>
+    <div class="stat"><b>Aujourd'hui</b><span id="pnl">—</span></div>
+    <div class="stat"><b>Prière</b><span id="prayer">—</span></div>
+  </div>
+  <div class="banner" id="banner"></div>
+</header>
+
+<main id="chat"></main>
+
+<div class="quick" id="quick">
+  <button class="goldb" data-cmd="prix du gold">Prix gold</button>
+  <button class="goldb" id="newsBtn" type="button">📰 Actus</button>
+  <button data-cmd="les annonces du jour">Annonces</button>
+  <button data-cmd="c'est quand la prière">Prières</button>
+  <button class="accent" data-cmd="réveille-toi" data-pc="1">☀ Bureau</button>
+  <button data-cmd="mets-toi en veille" data-pc="1">☾ Veille</button>
+  <button class="accent" data-cmd="je vais rentrer en position" data-pc="1">↗ Entrée</button>
+  <button class="accent" data-cmd="je suis sorti de ma position" data-pc="1">↘ Sortie</button>
+  <button data-cmd="où j'en suis aujourd'hui" data-pc="1">Ma journée</button>
+  <button data-cmd="mes alertes" data-pc="1">Alertes</button>
+  <button data-cmd="musique suivante" data-pc="1">♫ Suivante</button>
+  <button data-cmd="pause" data-pc="1">❚❚ Pause</button>
+  <button class="goldb" data-cmd="fais-moi le bilan de la semaine" data-pc="1">Bilan semaine</button>
+  <button class="accent" id="pcSleep" type="button">⏻ PC en veille</button>
+  <button class="goldb" id="pcWake" type="button">⏻ Rallumer le PC</button>
+</div>
+<form id="form" autocomplete="off">
+  <button type="button" id="mic" aria-label="Parler">🎤</button>
+  <input type="text" id="input" placeholder="Parle à Jarvis…" enterkeyhint="send">
+  <button type="submit">Envoyer</button>
+</form>
+
+<div class="modal" id="newsModal"><div class="sheet" style="max-height:85vh;overflow-y:auto">
+  <h3>ACTUS GOLD — TRUMP &amp; MAILS</h3>
+  <div id="newsList">Chargement…</div>
+  <div class="row"><button type="button" data-close>Fermer</button></div>
+</div></div>
+
+<div class="modal" id="sleepModal"><div class="sheet">
+  <h3>VRAIE VEILLE DU PC</h3>
+  <p>Le PC s'endort complètement : plus de bruit, plus de lumières. L'appli continue de marcher sans lui
+     (prix, actus, annonces, discussion), et « Rallumer le PC » le réveille.</p>
+  <div class="row"><button type="button" data-close>Annuler</button>
+  <button type="button" class="danger" id="sleepGo">Mettre en veille</button></div>
+</div></div>
+
+<script>
+// =====================================================================================
+// Jarvis mobile : marche AVEC le PC (quand il est joignable : Wi-Fi maison ou Tailscale)
+// et SANS le PC (prix, actus de Trump traduites, annonces, prières, discussion avec Claude).
+// Tous les appels réseau passent par l'appli Android (window.JarvisAndroid).
+// =====================================================================================
+const A = window.JarvisAndroid;
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t || "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+let PC = null;            // adresse du PC joignable, ou null
+let speakOn = true;
+try { speakOn = localStorage.getItem("voice") !== "0"; } catch (e) {}
+$("voiceBtn").textContent = speakOn ? "🔊" : "🔇";
+
+// ---------- pont natif : requêtes HTTP, Claude, voix ----------
+const pending = {};
+let seq = 0;
+window.__native = (id, status, body) => { const p = pending[id]; delete pending[id]; if (p) p({ status, body }); };
+function nativeHttp(method, url, headers, body, timeoutMs) {
+  return new Promise(res => {
+    const id = "r" + (++seq);
+    pending[id] = res;
+    A.http(id, method, url, JSON.stringify(headers || {}), body || "", timeoutMs || 15000);
+  });
+}
+async function getJson(url) {
+  const r = await nativeHttp("GET", url, { "User-Agent": "Mozilla/5.0 Jarvis" });
+  if (r.status !== 200) throw new Error("HTTP " + r.status);
+  return JSON.parse(r.body);
+}
+function claude(messages, system, maxTokens) {
+  return new Promise(res => {
+    const id = "c" + (++seq);
+    pending[id] = (r) => {
+      if (r.status !== 200) return res({ error: r.body || ("erreur " + r.status) });
+      try { res({ text: JSON.parse(r.body).text || "" }); }
+      catch (e) { res({ error: "réponse illisible" }); }
+    };
+    A.claude(id, JSON.stringify(messages), system || "", maxTokens || 400);
+  });
+}
+
+// ---------- affichage ----------
+function add(text, who) {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.textContent = text;
+  $("chat").appendChild(d);
+  $("chat").scrollTop = $("chat").scrollHeight;
+  return d;
+}
+function say(text) { if (speakOn && text) A.speak(text); }
+
+// ---------- PC : trouvé ? ----------
+async function pcApi(path, body) {
+  const r = await nativeHttp(body ? "POST" : "GET", PC + path,
+    { "X-Jarvis-Code": A.code(), "Content-Type": "application/json" }, body ? JSON.stringify(body) : "", 70000);
+  if (r.status === 401) throw new Error("code");
+  if (r.status !== 200) throw new Error("pc");
+  return JSON.parse(r.body);
+}
+async function detectPc() {
+  PC = A.findPc() || null;   // essaie Wi-Fi maison puis Tailscale (2 s chacun)
+  $("dot").classList.toggle("on", !!PC);
+  $("state").textContent = PC ? (PC.includes("100.") ? "PC (à distance)" : "PC connecté") : "mode autonome";
+  document.querySelectorAll("[data-pc]").forEach(b => b.style.opacity = PC ? 1 : .45);
+  return PC;
+}
+
+// ---------- données sans le PC ----------
+async function goldPrice() {
+  for (const sym of ["GC=F", "MGC=F"]) {
+    try {
+      const j = await getJson("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1m&range=1d");
+      const m = j.chart.result[0].meta, p = m.regularMarketPrice, prev = m.chartPreviousClose || m.previousClose || p;
+      return { price: p, chg: (p - prev) / prev * 100 };
+    } catch (e) {}
+  }
+  return null;
+}
+function goldPhrase(g) {
+  if (!g) return "Je n'arrive pas à récupérer le prix du gold.";
+  const sens = g.chg > 0.05 ? "en hausse" : g.chg < -0.05 ? "en baisse" : "stable";
+  return "Le gold est à " + g.price.toFixed(2).replace(".", " dollars ") + ", " + sens +
+         (sens !== "stable" ? " de " + Math.abs(g.chg).toFixed(1).replace(".", ",") + " pour cent" : "") + " aujourd'hui.";
+}
+const hm = (d) => d.getHours() + "h" + (d.getMinutes() ? String(d.getMinutes()).padStart(2, "0") : "");
+async function calendarToday() {
+  const j = await getJson("https://nfs.faireconomy.media/ff_calendar_thisweek.json");
+  const today = new Date().toDateString();
+  return j.filter(e => e.country === "USD" && e.impact === "High" && new Date(e.date).toDateString() === today)
+          .map(e => ({ title: e.title, when: new Date(e.date) }));
+}
+async function briefPhrase() {
+  try {
+    const ev = await calendarToday();
+    if (!ev.length) return "Aucune grosse annonce américaine aujourd'hui. Journée calme côté news pour le gold.";
+    const now = new Date();
+    const list = ev.map(e => e.title + " à " + hm(e.when)).join(", ");
+    const zones = ev.filter(e => e.when > new Date(now - 30 * 60000))
+      .map(e => "de " + hm(new Date(e.when - 15 * 60000)) + " à " + hm(new Date(+e.when + 30 * 60000))).join(", puis ");
+    return "Annonces américaines à fort impact aujourd'hui : " + list + "." + (zones ? " Évite de trader " + zones + "." : "");
+  } catch (e) { return "Je n'arrive pas à récupérer le calendrier économique."; }
+}
+async function prayers() {
+  const d = new Date(), ds = String(d.getDate()).padStart(2, "0") + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + d.getFullYear();
+  const j = await getJson("https://api.aladhan.com/v1/timings/" + ds + "?latitude=48.85&longitude=2.65&method=99&methodSettings=18,null,18&timezonestring=Europe/Paris");
+  const t = j.data.timings, out = {};
+  for (const k of ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]) { const [h, m] = t[k].split(" ")[0].split(":"); const x = new Date(); x.setHours(+h, +m, 0, 0); out[k] = x; }
+  return out;
+}
+async function prayerPhrase() {
+  try {
+    const p = await prayers(), now = new Date();
+    const n = Object.entries(p).find(([k, v]) => v > now);
+    if (!n) return "Toutes les prières du jour sont passées.";
+    const mins = Math.round((n[1] - now) / 60000);
+    return "Prochaine prière : " + n[0] + " à " + hm(n[1]) + ", dans " + (mins < 60 ? mins + " minutes" : Math.floor(mins / 60) + " heure" + (mins >= 120 ? "s " : " ") + String(mins % 60).padStart(2, "0")) + ".";
+  } catch (e) { return "Je n'arrive pas à récupérer les heures de prière."; }
+}
+
+// ---------- posts de Trump traduits par Claude (sans le PC) ----------
+function cacheGet() { try { return JSON.parse(localStorage.getItem("trump") || "{}"); } catch (e) { return {}; } }
+function cacheSet(c) { try { localStorage.setItem("trump", JSON.stringify(c)); } catch (e) {} }
+async function trumpPosts(n) {
+  const r = await nativeHttp("GET", "https://trumpstruth.org/feed", { "User-Agent": "Mozilla/5.0 Jarvis" });
+  const doc = new DOMParser().parseFromString(r.body, "text/xml");
+  const items = [...doc.querySelectorAll("item")].slice(0, n || 8).map(it => {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = it.querySelector("description")?.textContent || it.querySelector("title")?.textContent || "";
+    return { guid: it.querySelector("guid")?.textContent || "", date: new Date(it.querySelector("pubDate")?.textContent || Date.now()),
+             text: tmp.textContent.trim() };
+  }).filter(p => p.text.length > 15 && !p.text.startsWith("[No Title]"));
+  const cache = cacheGet(), todo = items.filter(p => !cache[p.guid]);
+  if (todo.length) {
+    const prompt = "Pour chaque post de Trump ci-dessous, donne l'impact sur le gold et une traduction française. " +
+      "Réponds UNIQUEMENT en JSON : une liste [{\"i\":numéro,\"impact\":\"fort|moyen|faible\",\"sens\":\"haussier|baissier|neutre\"," +
+      "\"resume\":\"une phrase sur ce qui compte pour le gold\",\"traduction\":\"traduction fidèle (120 mots max)\"}].\n\n" +
+      todo.map((p, i) => "#" + i + " : " + p.text.slice(0, 1500)).join("\n\n");
+    const res = await claude([{ role: "user", content: prompt }], "Tu es analyste macro pour un trader de gold.", 2500);
+    try {
+      const arr = JSON.parse((res.text || "").match(/\[[\s\S]*\]/)[0]);
+      for (const a of arr) { const p = todo[a.i]; if (p) cache[p.guid] = a; }
+      cacheSet(cache);
+    } catch (e) {}
+  }
+  return items.map(p => ({ ...cache[p.guid], original: p.text, source: "Truth Social",
+                           date: p.date.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) }));
+}
+
+// ---------- discussion avec Claude (sans le PC) ----------
+let history = [];
+async function chatClaude(text) {
+  if (!A.hasClaude()) return "Ajoute ta clé IA gratuite (Gemini) dans les réglages ⚙ pour discuter avec moi quand le PC est éteint.";
+  const g = await goldPrice().catch(() => null);
+  const ctx = "Nous sommes le " + new Date().toLocaleString("fr-FR") + ". " + (g ? goldPhrase(g) : "") + " " + (await briefPhrase());
+  const system = "Tu es Jarvis, l'assistant personnel de Jabran, trader en prop firm sur le gold (Micro Gold MGC), musulman. " +
+    "Tu réponds en français, tu le tutoies, de façon naturelle et un peu classe, comme le Jarvis d'Iron Man. " +
+    "Réponses courtes (1 à 4 phrases), lues à voix haute : pas de listes, pas de markdown, pas d'émojis. " +
+    "Tu ne donnes jamais d'ordre d'achat ou de vente ferme ; la décision reste à Jabran.\n" + ctx;
+  history.push({ role: "user", content: text });
+  history = history.slice(-12);
+  const r = await claude(history, system, 500);
+  const out = r.text || ("Souci avec l'IA : " + String(r.error || "").slice(0, 120));
+  if (r.text) history.push({ role: "assistant", content: r.text });
+  return out;
+}
+
+// ---------- commandes ----------
+const norm = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/^\s*(hey |he )?jarvis\W*/, "");
+async function localCommand(text) {
+  const c = norm(text), has = (...w) => w.some(x => c.includes(x)), short = c.split(/\s+/).length <= 7;
+  if (short && /\b(gold|or|l'or|mgc)\b/.test(c) && has("prix", "combien", "cours", "niveau")) return goldPhrase(await goldPrice());
+  if (short && has("annonce", "brief", "news du jour", "calendrier")) return await briefPhrase();
+  if (short && has("priere", "salat", "dhuhr", "asr", "maghrib", "isha", "fajr")) return await prayerPhrase();
+  if (has("trump", "truth")) {
+    const posts = (await trumpPosts(6)).filter(p => p.impact);
+    const imp = posts.filter(p => p.impact !== "faible").slice(0, 3);
+    return imp.length ? "Derniers posts de Trump qui comptent : " + imp.map(p => p.resume).join(" ")
+                      : "Rien d'important pour le gold dans les derniers posts de Trump.";
+  }
+  if (has("rallume", "allume le pc", "demarre le pc")) { return A.wake(); }
+  return await chatClaude(text);
+}
+
+async function handle(text) {
+  text = text.trim(); if (!text) return;
+  add(text, "me");
+  const wait = add("…", "jarvis typing");
+  let replies = [];
+  try {
+    if (PC || await detectPc()) {
+      try { const r = await pcApi("/api/cmd", { text }); replies = (r.replies || []).filter(Boolean); if (!replies.length) replies = [r.done ? "C'est fait." : "Je n'ai pas compris."]; }
+      catch (e) { if (e.message === "code") replies = ["Code incorrect : vérifie-le dans les réglages ⚙."]; else { PC = null; await detectPc(); replies = [await localCommand(text)]; } }
+    } else {
+      replies = [await localCommand(text)];
+    }
+  } catch (e) { replies = ["Petit souci : " + e.message]; }
+  wait.remove();
+  for (const r of replies) { add(r, "jarvis"); say(r); }
+  refresh();
+}
+
+// ---------- en-tête ----------
+async function refresh() {
+  const g = await goldPrice().catch(() => null);
+  if (g) { const el = $("gold"); el.textContent = g.price.toFixed(1) + (g.chg >= 0 ? " ▲" : " ▼"); el.className = g.chg >= 0 ? "gold up" : "gold down"; }
+  try { const p = await prayers(), now = new Date(), n = Object.entries(p).find(([k, v]) => v > now); $("prayer").textContent = n ? n[0] + " " + hm(n[1]) : "—"; } catch (e) {}
+  if (PC) {
+    try {
+      const s = await pcApi("/api/status");
+      if (s.pnl !== null && s.pnl !== undefined) { $("pnl").textContent = (s.pnl >= 0 ? "+" : "") + Math.round(s.pnl) + " $"; $("pnl").className = s.pnl > 0 ? "up" : s.pnl < 0 ? "down" : ""; }
+      if (s.mac) A.saveWol(s.mac, s.broadcast || "");
+      $("state").textContent = s.asleep ? "PC · bureau en veille" : (PC.includes("100.") ? "PC (à distance)" : "PC connecté");
+    } catch (e) { PC = null; detectPc(); }
+  } else { $("pnl").textContent = "—"; }
+}
+
+// ---------- boutons ----------
+$("form").addEventListener("submit", (e) => { e.preventDefault(); const t = $("input").value; $("input").value = ""; handle(t); });
+$("quick").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-cmd]"); if (!b) return;
+  if (b.dataset.pc && !PC) { add("Le PC est éteint ou injoignable. Touche « ⏻ Rallumer le PC » d'abord.", "jarvis"); return; }
+  handle(b.dataset.cmd);
+});
+$("voiceBtn").addEventListener("click", () => { speakOn = !speakOn; try { localStorage.setItem("voice", speakOn ? "1" : "0"); } catch (e) {} $("voiceBtn").textContent = speakOn ? "🔊" : "🔇"; if (!speakOn) A.stopSpeak(); });
+$("setBtn").addEventListener("click", () => A.settings());
+document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => b.closest(".modal").style.display = "none"));
+$("pcSleep").addEventListener("click", () => { if (!PC) { add("Le PC est déjà éteint ou injoignable.", "jarvis"); return; } $("sleepModal").style.display = "flex"; });
+$("sleepGo").addEventListener("click", async () => { $("sleepModal").style.display = "none"; try { const r = await pcApi("/api/pc_sleep", {}); (r.replies || []).forEach(t => { add(t, "jarvis"); say(t); }); } catch (e) {} setTimeout(detectPc, 8000); });
+$("pcWake").addEventListener("click", () => {
+  const m = A.wake(); add(m, "jarvis"); say(m);
+  let n = 0; const t = setInterval(async () => { n++; if (await detectPc()) { clearInterval(t); add("Le PC est réveillé et connecté.", "jarvis"); refresh(); } else if (n > 15) clearInterval(t); }, 6000);
+});
+
+// micro : reconnaissance vocale du téléphone (marche aussi en 4G)
+window.__onSpeech = (text, err) => {
+  $("mic").classList.remove("rec");
+  if (text) handle(text); else if (err) add("Je n'ai rien entendu (" + err + ").", "jarvis");
+};
+$("mic").addEventListener("click", () => { A.stopSpeak(); $("mic").classList.add("rec"); A.listen(); });
+
+// actus
+$("newsBtn").addEventListener("click", async () => {
+  $("newsModal").style.display = "flex"; $("newsList").textContent = "Chargement…";
+  let items = [];
+  try { items = PC ? (await pcApi("/api/news")).items : await trumpPosts(10); }
+  catch (e) { try { items = await trumpPosts(10); } catch (e2) {} }
+  $("newsList").innerHTML = items.length ? items.map(it => {
+    const sens = it.sens === "haussier" ? "▲ haussier" : it.sens === "baissier" ? "▼ baissier" : "";
+    return `<div class="news"><div class="meta"><span class="badge b-${esc(it.impact || "faible")}">${esc(it.impact || "?")}</span>
+      <span>${esc(it.source)}</span><span>${esc(it.date)}</span><span>${sens}</span></div>
+      ${it.resume ? `<div class="res">${esc(it.resume)}</div>` : ""}
+      <div class="tr">${esc(it.traduction || (A.hasClaude() ? "" : "(ajoute ta clé IA dans ⚙ pour la traduction)"))}</div>
+      <details><summary>Texte original</summary>${esc(it.original)}</details></div>`;
+  }).join("") : "Aucune actu pour l'instant.";
+});
+
+// démarrage
+(async () => {
+  await detectPc();
+  add(PC ? "Salam Jabran. Je suis connecté à ton PC." : "Salam Jabran. Le PC est éteint ou loin : je marche en mode autonome. Prix, actus, annonces et discussion fonctionnent.", "jarvis");
+  refresh();
+  setInterval(refresh, 30000);
+  setInterval(detectPc, 60000);
+})();
+</script>
+</body>
+
+</html>

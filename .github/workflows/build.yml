@@ -26,10 +26,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Clé de signature fixe (secret JARVIS_CLE)
+        env:
+          JARVIS_CLE: ${{ secrets.JARVIS_CLE }}
+        run: |
+          # Toujours la même clé : Android accepte la mise à jour par-dessus l'ancienne version.
+          # Le secret contient 2 lignes : le mot de passe, puis la clé en base64.
+          if [ -n "$JARVIS_CLE" ]; then
+            MDP=$(printf '%s\n' "$JARVIS_CLE" | sed -n 1p | tr -d ' \r')
+            echo "::add-mask::$MDP"
+            printf '%s\n' "$JARVIS_CLE" | sed -n '2,$p' | tr -d ' \r\n' | base64 -d > app/jarvis.p12
+            echo "JARVIS_CLE_MDP=$MDP" >> "$GITHUB_ENV"
+            echo "Clé fixe : oui"
+          else
+            echo "::warning::Secret JARVIS_CLE absent : signature aléatoire (il faudra désinstaller l'ancienne appli)."
+          fi
       - name: Construire
         run: gradle assembleDebug --no-daemon
       - name: Renommer
-        run: cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
+          rm -f app/jarvis.p12
+          # Empreinte de la signature (doit rester la même d'une version à l'autre)
+          SIGNER=$(ls ${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/*/apksigner | tail -1)
+          "$SIGNER" verify --print-certs Jarvis.apk | grep -i "SHA-256" || true
       - uses: actions/upload-artifact@v4
         with:
           name: Jarvis-apk

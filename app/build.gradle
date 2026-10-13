@@ -10,6 +10,21 @@ android {
         versionCode 8
         versionName "2.5"
     }
+    signingConfigs {
+        // Clé fixe (secret GitHub JARVIS_CLE, déposée par la compilation) : chaque nouvelle
+        // version s'installe par-dessus l'ancienne sans désinstaller ni perdre les réglages.
+        debug {
+            def cle = file("jarvis.p12")
+            def mdp = System.getenv("JARVIS_CLE_MDP")
+            if (cle.exists() && mdp) {
+                storeFile cle
+                storeType "pkcs12"
+                storePassword mdp
+                keyAlias "jarvis"
+                keyPassword mdp
+            }
+        }
+    }
     buildTypes {
         debug { minifyEnabled false }
     }

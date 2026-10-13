@@ -31,7 +31,13 @@
   .bar { display: flex; align-items: center; gap: 4px; padding: 12px 10px 4px 18px; }
   .wordmark { font-family: "Barlow Condensed", sans-serif; font-weight: 500; font-size: 16px; letter-spacing: .42em; color: var(--or); }
   .link { margin-left: auto; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 999px;
-    font-size: 13.5px; color: var(--cendre); }
+    font-size: 13.5px; color: var(--cendre); white-space: nowrap; }
+  @media (max-width: 380px) {
+    .bar { padding-left: 14px; }
+    .wordmark { font-size: 15px; letter-spacing: .3em; }
+    .link { padding: 8px 4px; font-size: 13px; }
+    .ib { width: 38px; }
+  }
   .led { width: 7px; height: 7px; border-radius: 50%; background: #3a1214; flex: none; }
   .led.on { background: var(--braise-vive); box-shadow: 0 0 8px var(--braise-vive); }
   .ib { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: rgba(242, 231, 226, .8); }

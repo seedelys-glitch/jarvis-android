@@ -133,7 +133,7 @@ public class MainActivity extends Activity {
         EditText ts = field(box, "Adresse Tailscale du PC (100.x.x.x) — pour la 4G",
                 prefs.getString("tailscale", ""),
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        EditText code = field(box, "Code de l'appli (fenêtre noire de Jarvis)",
+        EditText code = field(box, "Code de l'appli, 6 chiffres (devant le PC : « Jarvis, code de l'appli »)",
                 prefs.getString("code", ""), InputType.TYPE_CLASS_NUMBER);
         boolean hasKey = !prefs.getString("claude", "").isEmpty();
         EditText key = field(box, hasKey ? "Clé IA : enregistrée (laisse vide pour la garder)"

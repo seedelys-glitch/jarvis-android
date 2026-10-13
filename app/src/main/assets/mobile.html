@@ -191,6 +191,7 @@ async function pcApi(path, body) {
   const r = await nativeHttp(body ? "POST" : "GET", PC + path,
     { "X-Jarvis-Code": A.code(), "Content-Type": "application/json" }, body ? JSON.stringify(body) : "", 70000);
   if (r.status === 401) throw new Error("code");
+  if (r.status === 429) throw new Error("bloque");  // trop de codes faux : Jarvis bloque 15 min
   if (r.status !== 200) throw new Error("pc");
   return JSON.parse(r.body);
 }
@@ -261,10 +262,11 @@ async function trumpPosts(n) {
   const r = await nativeHttp("GET", "https://trumpstruth.org/feed", { "User-Agent": "Mozilla/5.0 Jarvis" });
   const doc = new DOMParser().parseFromString(r.body, "text/xml");
   const items = [...doc.querySelectorAll("item")].slice(0, n || 8).map(it => {
-    const tmp = document.createElement("div");
-    tmp.innerHTML = it.querySelector("description")?.textContent || it.querySelector("title")?.textContent || "";
+    // le texte du post est lu dans un document « inerte » : rien ne peut s'y exécuter ni se charger
+    const html = it.querySelector("description")?.textContent || it.querySelector("title")?.textContent || "";
+    const text = new DOMParser().parseFromString(html, "text/html").body.textContent || "";
     return { guid: it.querySelector("guid")?.textContent || "", date: new Date(it.querySelector("pubDate")?.textContent || Date.now()),
-             text: tmp.textContent.trim() };
+             text: text.trim() };
   }).filter(p => p.text.length > 15 && !p.text.startsWith("[No Title]"));
   const cache = cacheGet(), todo = items.filter(p => !cache[p.guid]);
   if (todo.length) {
@@ -326,7 +328,11 @@ async function handle(text) {
   try {
     if (PC || await detectPc()) {
       try { const r = await pcApi("/api/cmd", { text }); replies = (r.replies || []).filter(Boolean); if (!replies.length) replies = [r.done ? "C'est fait." : "Je n'ai pas compris."]; }
-      catch (e) { if (e.message === "code") replies = ["Code incorrect : vérifie-le dans les réglages ⚙."]; else { PC = null; await detectPc(); replies = [await localCommand(text)]; } }
+      catch (e) {
+        if (e.message === "code") replies = ["Code incorrect : mets le code à 6 chiffres dans les réglages ⚙ (devant le PC, dis « Jarvis, code de l'appli »)."];
+        else if (e.message === "bloque") replies = ["Trop de codes faux : Jarvis bloque l'appli pendant 15 minutes."];
+        else { PC = null; await detectPc(); replies = [await localCommand(text)]; }
+      }
     } else {
       replies = [await localCommand(text)];
     }
@@ -347,7 +353,11 @@ async function refresh() {
       if (s.pnl !== null && s.pnl !== undefined) { $("pnl").textContent = (s.pnl >= 0 ? "+" : "") + Math.round(s.pnl) + " $"; $("pnl").className = s.pnl > 0 ? "up" : s.pnl < 0 ? "down" : ""; }
       if (s.mac) A.saveWol(s.mac, s.broadcast || "");
       $("state").textContent = s.asleep ? "PC · bureau en veille" : (PC.includes("100.") ? "PC (à distance)" : "PC connecté");
-    } catch (e) { PC = null; detectPc(); }
+    } catch (e) {
+      if (e.message === "code") $("state").textContent = "code à mettre à jour ⚙";
+      else if (e.message === "bloque") $("state").textContent = "bloqué 15 min";
+      else { PC = null; detectPc(); }
+    }
   } else { $("pnl").textContent = "—"; }
 }
 

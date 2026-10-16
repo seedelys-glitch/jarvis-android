@@ -94,6 +94,8 @@
   .field input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--os); font: inherit; font-size: 16px; }
   .field input::placeholder { color: var(--cendre); }
   #send { width: 40px; height: 40px; display: none; place-items: center; border-radius: 50%; color: var(--or-clair); }
+  #photo { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--cendre); flex: none; }
+  .msg img { display: block; max-width: 100%; max-height: 220px; border-radius: 10px; }
   .typed #send { display: grid; }
   #mic { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 50%; flex: none;
     background: var(--braise); color: #fff; box-shadow: 0 0 24px rgba(227, 36, 43, .35); }
@@ -154,6 +156,10 @@
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></symbol>
   <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.5v8"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/></symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-desk" viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.2"/><circle cx="17" cy="8" r="2.2"/><circle cx="12" cy="6.5" r="2.2"/><path d="M3.5 18a3.5 3.5 0 0 1 7 0M13.5 18a3.5 3.5 0 0 1 7 0M8.5 15.5a3.5 3.5 0 0 1 7 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 7h11M9 12h11M9 17h11"/><circle cx="5" cy="7" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="17" r="1"/></symbol>
 </svg>
 
 <header class="bar">
@@ -189,6 +195,8 @@
 
 <form class="composer" id="form" autocomplete="off">
   <div class="field"><input type="text" id="input" placeholder="Écris à Jarvis" enterkeyhint="send" aria-label="Message pour Jarvis">
+    <button type="button" id="photo" aria-label="Envoyer une image à analyser"><svg class="i"><use href="#i-photo"/></svg></button>
+    <input type="file" id="photoFile" accept="image/*" hidden>
     <button type="submit" id="send" aria-label="Envoyer"><svg class="i"><use href="#i-send"/></svg></button></div>
   <button type="button" id="mic" aria-label="Parler à Jarvis"><svg class="i"><use href="#i-mic"/></svg></button>
 </form>
@@ -200,6 +208,18 @@
     <button type="button" class="tile" id="dashBtn"><svg class="i"><use href="#i-chart"/></svg>Tableau de bord</button>
     <button type="button" class="tile needpc" data-cmd="fais-moi le bilan de la semaine" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Bilan de la semaine</button>
     <button type="button" class="tile needpc" data-cmd="mes alertes" data-pc="1"><svg class="i"><use href="#i-bell"/></svg>Mes alertes</button>
+    <button type="button" class="tile needpc" data-cmd="vérifie mon setup" data-pc="1"><svg class="i"><use href="#i-check"/></svg>Vérifier mon setup</button>
+    <button type="button" class="tile needpc" data-cmd="envoie-moi mes graphiques" data-pc="1"><svg class="i"><use href="#i-photo"/></svg>Graphiques sur Telegram</button>
+    <button type="button" class="tile needpc" data-cmd="lance le desk sur le gold" data-pc="1"><svg class="i"><use href="#i-desk"/></svg>Salle des marchés</button>
+    <button type="button" class="tile needpc" data-cmd="où en est le desk" data-pc="1"><svg class="i"><use href="#i-desk"/></svg>Où en est la Salle</button>
+  </div></div>
+  <div class="group"><h3>Assistant</h3><div class="tiles">
+    <button type="button" class="tile needpc" data-cmd="mes rappels" data-pc="1"><svg class="i"><use href="#i-bell"/></svg>Mes rappels</button>
+    <button type="button" class="tile needpc" data-cmd="ma liste" data-pc="1"><svg class="i"><use href="#i-list"/></svg>Ma liste</button>
+    <button type="button" class="tile needpc" data-cmd="mes notes" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Mes notes</button>
+    <button type="button" class="tile needpc" data-cmd="qu'est-ce que tu sais sur moi" data-pc="1"><svg class="i"><use href="#i-check"/></svg>Ce qu'il retient</button>
+    <button type="button" class="tile needpc" data-cmd="mode concentration" data-pc="1"><svg class="i"><use href="#i-moon"/></svg>Mode concentration</button>
+    <button type="button" class="tile needpc" data-cmd="fin de la concentration" data-pc="1"><svg class="i"><use href="#i-sun"/></svg>Fin de la concentration</button>
   </div></div>
   <div class="group"><h3>Marché</h3><div class="tiles">
     <button type="button" class="tile" data-cmd="prix du gold"><svg class="i"><use href="#i-gold"/></svg>Prix du gold</button>
@@ -309,9 +329,9 @@ const money = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(Math.round(v)
 function setText(id, text, cls) { const e = $(id); e.textContent = text; if (cls !== undefined) e.className = cls; }
 
 // ---------- PC : trouvé ? ----------
-async function pcApi(path, body) {
+async function pcApi(path, body, timeoutMs) {
   const r = await nativeHttp(body ? "POST" : "GET", PC + path,
-    { "X-Jarvis-Code": A.code(), "Content-Type": "application/json" }, body ? JSON.stringify(body) : "", 70000);
+    { "X-Jarvis-Code": A.code(), "Content-Type": "application/json" }, body ? JSON.stringify(body) : "", timeoutMs || 70000);
   if (r.status === 401) throw new Error("code");
   if (r.status === 429) throw new Error("bloque");  // trop de codes faux : Jarvis bloque 15 min
   if (r.status !== 200) throw new Error("pc");
@@ -570,6 +590,61 @@ $("dashBtn").addEventListener("click", async () => {
   body.textContent = "Chargement…";
   try { renderTableau(body, await pcApi("/api/journal")); }
   catch (e) { body.textContent = e.message === "code" ? "Code incorrect : mets le bon code dans les réglages." : "Le PC ne répond pas."; }
+});
+
+// ---------- image à analyser (capture de graphique, photo) ----------
+function shrink(file) {  // image réduite à 1600 px (plus rapide à envoyer et à analyser)
+  return new Promise((ok, ko) => {
+    const img = new Image(); img.onerror = ko;
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(img.src);
+      ok(c.toDataURL("image/jpeg", 0.88));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+function visionPhone(dataUrl, question) {  // PC éteint : l'IA du téléphone (Gemini gratuit) regarde l'image
+  if (!A.hasClaude() || !A.vision) return Promise.resolve("Le PC est éteint ou loin. Pour analyser une image sans lui, ajoute ta clé IA gratuite (Gemini) dans les réglages.");
+  const system = "Tu es Jarvis, l'assistant de Jabran, trader de gold (Micro Gold MGC). Tu regardes une image : " +
+    "le plus souvent une capture de graphique TradingView. Décris ce qui compte : tendance et structure (BOS), " +
+    "EMA 200 si elle est visible, zones de Fibonacci et FVG s'il y en a, niveaux importants, et ce qu'il faudrait attendre. " +
+    "Réponds en français, 3 à 6 phrases courtes, sans listes ni markdown. Si ce n'est pas un graphique, décris simplement l'image. " +
+    "Tu ne donnes jamais d'ordre d'achat ou de vente ferme ; la décision reste à Jabran.";
+  return new Promise(res => {
+    const id = "v" + (++seq);
+    pending[id] = (r) => {
+      if (r.status !== 200) return res("Souci avec l'IA du téléphone : " + String(r.body || r.status).slice(0, 120));
+      try { res(JSON.parse(r.body).text || "Je n'ai rien pu lire sur cette image."); } catch (e) { res("Réponse illisible."); }
+    };
+    A.vision(id, dataUrl.split(",", 2)[1] || "", question || "Analyse cette image.", system, 900);
+  });
+}
+$("photo").addEventListener("click", () => $("photoFile").click());
+$("photoFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+  let url;
+  try { url = await shrink(f); } catch (err) { add("Je n'arrive pas à ouvrir cette image.", "jarvis"); return; }
+  const mine = add("", "me"); const im = document.createElement("img"); im.src = url; im.alt = "Image envoyée"; mine.appendChild(im);
+  const q = $("input").value.trim();
+  if (q) { const t = document.createElement("div"); t.textContent = q; mine.appendChild(t); $("input").value = ""; $("form").classList.remove("typed"); }
+  im.onload = () => { $("chat").scrollTop = $("chat").scrollHeight; };
+  const wait = add("", "jarvis typing");
+  let replies = [];
+  try {
+    if (PC || await detectPc()) {
+      try { const r = await pcApi("/api/image", { image: url, question: q }, 240000); replies = (r.replies || []).filter(Boolean); }
+      catch (err) {
+        if (err.message === "code") replies = ["Code incorrect : mets le code à 6 chiffres dans les réglages (devant le PC, dis « Jarvis, code de l'appli »)."];
+        else if (err.message === "bloque") replies = ["Trop de codes faux : Jarvis bloque l'appli pendant 15 minutes."];
+        else { PC = null; await detectPc(); replies = [await visionPhone(url, q)]; }
+      }
+    } else replies = [await visionPhone(url, q)];
+  } catch (err) { replies = ["Petit souci : " + err.message]; }
+  wait.remove();
+  if (!replies.length) replies = ["Je n'ai pas réussi à lire l'image."];
+  for (const r of replies) { add(r, "jarvis"); say(r.split(/(?<=[.!?])\s/).slice(0, 2).join(" ")); }
 });
 
 // micro : reconnaissance vocale du téléphone (marche aussi en 4G)

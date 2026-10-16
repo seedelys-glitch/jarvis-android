@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
@@ -16,6 +17,8 @@ import android.speech.tts.TextToSpeech;
 import android.text.InputType;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -59,6 +62,8 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private boolean ttsReady = false;
     private SpeechRecognizer recognizer;
+    private ValueCallback<Uri[]> fileCallback;   // choix d'une image (bouton photo de la page)
+    private static final int PICK_IMAGE = 42;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -78,6 +83,25 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         web.addJavascriptInterface(new Bridge(), "JarvisAndroid");
         web.setWebViewClient(new WebViewClient());
+        // Bouton photo de la page : ouvre la galerie (captures TradingView, photos).
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("image/*");
+                try {
+                    startActivityForResult(Intent.createChooser(i, "Image à analyser"), PICK_IMAGE);
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+                return true;
+            }
+        });
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -94,6 +118,18 @@ public class MainActivity extends Activity {
         if (prefs.getString("code", "").isEmpty() && prefs.getString("claude", "").isEmpty()) {
             showSettings();
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == PICK_IMAGE) {
+            if (fileCallback != null) {
+                fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                fileCallback = null;
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -321,6 +357,23 @@ public class MainActivity extends Activity {
             }).start();
         }
 
+        /** Analyse d'une image (JPEG en base64) par l'IA du téléphone, quand le PC est éteint.
+         *  Clé Google -> Gemini (gratuit) ; clé Anthropic -> Claude. Réponse : {"text": "..."} */
+        @JavascriptInterface
+        public void vision(String id, String imageB64, String question, String system, int maxTokens) {
+            new Thread(() -> {
+                String key = prefs.getString("claude", "");
+                if (key.isEmpty()) { reply(id, "401", "clé IA manquante"); return; }
+                try {
+                    String[] r = key.startsWith("sk-ant") ? visionClaude(key, imageB64, question, system, maxTokens)
+                                                          : visionGemini(key, imageB64, question, system, maxTokens);
+                    reply(id, r[0], r[1]);
+                } catch (Exception e) {
+                    reply(id, "0", String.valueOf(e.getMessage()));
+                }
+            }).start();
+        }
+
         @JavascriptInterface
         public void speak(String text) {
             if (ttsReady) tts.speak(text, TextToSpeech.QUEUE_ADD, null, "j" + System.nanoTime());
@@ -417,6 +470,49 @@ public class MainActivity extends Activity {
             if (!"404".equals(r[0])) break;
         }
         return r;
+    }
+
+    private String[] visionGemini(String key, String imageB64, String question, String system, int maxTokens)
+            throws Exception {
+        JSONArray parts = new JSONArray()
+                .put(new JSONObject().put("inline_data", new JSONObject()
+                        .put("mime_type", "image/jpeg").put("data", imageB64)))
+                .put(new JSONObject().put("text", question));
+        JSONObject b = new JSONObject()
+                .put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)))
+                .put("generationConfig", new JSONObject().put("maxOutputTokens", Math.max(maxTokens, 800))
+                        .put("temperature", 0.4));
+        if (system != null && !system.isEmpty()) {
+            b.put("systemInstruction", new JSONObject().put("parts",
+                    new JSONArray().put(new JSONObject().put("text", system))));
+        }
+        JSONObject h = new JSONObject().put("content-type", "application/json").put("x-goog-api-key", key);
+        String[] r = null;
+        for (String model : new String[]{"gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"}) {
+            r = httpCall("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + model
+                    + ":generateContent", h, b.toString(), 90000);
+            if ("200".equals(r[0])) {
+                JSONArray out = new JSONObject(r[1]).getJSONArray("candidates").getJSONObject(0)
+                        .getJSONObject("content").getJSONArray("parts");
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < out.length(); i++) {
+                    if (!out.getJSONObject(i).optBoolean("thought")) sb.append(out.getJSONObject(i).optString("text"));
+                }
+                return new String[]{"200", new JSONObject().put("text", sb.toString().trim()).toString()};
+            }
+            if (!"404".equals(r[0])) break;
+        }
+        return r;
+    }
+
+    private String[] visionClaude(String key, String imageB64, String question, String system, int maxTokens)
+            throws Exception {
+        JSONArray content = new JSONArray()
+                .put(new JSONObject().put("type", "image").put("source", new JSONObject()
+                        .put("type", "base64").put("media_type", "image/jpeg").put("data", imageB64)))
+                .put(new JSONObject().put("type", "text").put("text", question));
+        JSONArray msgs = new JSONArray().put(new JSONObject().put("role", "user").put("content", content));
+        return callClaude(key, msgs, system, maxTokens);
     }
 
     private String[] callClaude(String key, JSONArray msgs, String system, int maxTokens) throws Exception {

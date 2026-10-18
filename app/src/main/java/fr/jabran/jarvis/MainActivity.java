@@ -22,8 +22,10 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -48,7 +50,8 @@ import java.util.Locale;
  * Jarvis pour Android.
  * - Avec le PC (Wi-Fi maison ou Tailscale) : pilote Jarvis comme sur le PC.
  * - Sans le PC (éteint, en 4G) : prix du gold, actus de Trump traduites, annonces, prières,
- *   discussion avec Claude (clé API rangée dans le téléphone).
+ *   discussion avec l'IA : Gemini, Grok, DeepSeek, Groq ou Claude (clés rangées dans le téléphone ;
+ *   si une IA ne répond pas, la suivante prend le relais).
  * - Rallume le PC à distance (Wake-on-LAN).
  */
 public class MainActivity extends Activity {
@@ -56,6 +59,10 @@ public class MainActivity extends Activity {
     private static final int PC_PORT = 8765;
     private static final String CLAUDE_MODEL = "claude-sonnet-5-5";
     private static final String CLAUDE_FALLBACK = "claude-haiku-5-5";
+
+    // IA du téléphone : identifiant (préférences « cle_<id> »), nom affiché
+    private static final String[] IA_IDS = {"gemini", "grok", "deepseek", "groq", "claude"};
+    private static final String[] IA_NOMS = {"Gemini", "Grok", "DeepSeek", "Groq", "Claude"};
 
     private WebView web;
     private SharedPreferences prefs;
@@ -70,6 +77,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("jarvis", MODE_PRIVATE);
+        migrerCles();
 
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#050102"));
@@ -115,7 +123,7 @@ public class MainActivity extends Activity {
         }
 
         web.loadUrl("file:///android_asset/mobile.html");
-        if (prefs.getString("code", "").isEmpty() && prefs.getString("claude", "").isEmpty()) {
+        if (prefs.getString("code", "").isEmpty() && !aUneCle()) {
             showSettings();
         }
     }
@@ -157,6 +165,40 @@ public class MainActivity extends Activity {
         return e;
     }
 
+    /** Ancienne version : une seule clé dans « claude ». On la range dans la bonne case. */
+    private void migrerCles() {
+        String old = prefs.getString("claude", "");
+        if (old.isEmpty()) return;
+        String id = old.startsWith("sk-ant") ? "claude" : old.startsWith("AIza") ? "gemini"
+                : old.startsWith("xai-") ? "grok" : old.startsWith("gsk_") ? "groq" : "gemini";
+        SharedPreferences.Editor ed = prefs.edit().remove("claude");
+        if (prefs.getString("cle_" + id, "").isEmpty()) ed.putString("cle_" + id, old);
+        ed.apply();
+    }
+
+    private String cle(String id) {
+        return prefs.getString("cle_" + id, "");
+    }
+
+    private boolean aUneCle() {
+        for (String id : IA_IDS) if (!cle(id).isEmpty()) return true;
+        return false;
+    }
+
+    /** Ordre d'essai : l'IA préférée d'abord, puis les autres (Gemini gratuit en premier). */
+    private ArrayList<String> ordreIA() {
+        ArrayList<String> ordre = new ArrayList<>();
+        String pref = prefs.getString("ia_pref", "auto");
+        if (!"auto".equals(pref) && !cle(pref).isEmpty()) ordre.add(pref);
+        for (String id : IA_IDS) if (!ordre.contains(id) && !cle(id).isEmpty()) ordre.add(id);
+        return ordre;
+    }
+
+    private static String nomIA(String id) {
+        for (int i = 0; i < IA_IDS.length; i++) if (IA_IDS[i].equals(id)) return IA_NOMS[i];
+        return id;
+    }
+
     private void showSettings() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -171,10 +213,32 @@ public class MainActivity extends Activity {
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         EditText code = field(box, "Code de l'appli, 6 chiffres (devant le PC : « Jarvis, code de l'appli »)",
                 prefs.getString("code", ""), InputType.TYPE_CLASS_NUMBER);
-        boolean hasKey = !prefs.getString("claude", "").isEmpty();
-        EditText key = field(box, hasKey ? "Clé IA : enregistrée (laisse vide pour la garder)"
-                        : "Clé IA Gemini gratuite (aistudio.google.com > Get API key)", "",
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        // Une case par IA. La clé n'est jamais réaffichée : case vide = on garde l'ancienne.
+        String[] aide = {
+                "gratuite : aistudio.google.com > Get API key",
+                "console.x.ai > API Keys",
+                "platform.deepseek.com > API keys",
+                "gratuite : console.groq.com > API Keys",
+                "console.anthropic.com > API Keys"};
+        EditText[] keys = new EditText[IA_IDS.length];
+        for (int i = 0; i < IA_IDS.length; i++) {
+            boolean ok = !cle(IA_IDS[i]).isEmpty();
+            keys[i] = field(box, "Clé " + IA_NOMS[i] + (ok ? " : enregistrée ✓ (vide = la garder, « effacer » = la retirer)"
+                            : " (" + aide[i] + ")"), "",
+                    InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        }
+        TextView tp = new TextView(this);
+        tp.setText("IA à utiliser en premier (si elle ne répond pas, Jarvis passe à la suivante)");
+        tp.setPadding(0, 18, 0, 0);
+        box.addView(tp);
+        String[] choix = new String[IA_IDS.length + 1];
+        choix[0] = "Automatique";
+        System.arraycopy(IA_NOMS, 0, choix, 1, IA_NOMS.length);
+        Spinner pref = new Spinner(this);
+        pref.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, choix));
+        String actuel = prefs.getString("ia_pref", "auto");
+        for (int i = 0; i < IA_IDS.length; i++) if (IA_IDS[i].equals(actuel)) pref.setSelection(i + 1);
+        box.addView(pref);
 
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);
@@ -186,8 +250,13 @@ public class MainActivity extends Activity {
                             .putString("ip", clean(ip.getText().toString()))
                             .putString("tailscale", clean(ts.getText().toString()))
                             .putString("code", code.getText().toString().trim());
-                    String k = key.getText().toString().trim();
-                    if (!k.isEmpty()) ed.putString("claude", k);
+                    for (int i = 0; i < IA_IDS.length; i++) {
+                        String k = keys[i].getText().toString().trim();
+                        if (k.equalsIgnoreCase("effacer")) ed.remove("cle_" + IA_IDS[i]);
+                        else if (!k.isEmpty()) ed.putString("cle_" + IA_IDS[i], k);
+                    }
+                    int sel = pref.getSelectedItemPosition();
+                    ed.putString("ia_pref", sel <= 0 ? "auto" : IA_IDS[sel - 1]);
                     ed.apply();
                     web.reload();
                 })
@@ -301,7 +370,15 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean hasClaude() {
-            return !prefs.getString("claude", "").isEmpty();
+            return aUneCle();
+        }
+
+        /** Noms des IA disponibles, dans l'ordre d'essai (ex. « Grok, Gemini »). */
+        @JavascriptInterface
+        public String iaDispo() {
+            StringBuilder sb = new StringBuilder();
+            for (String id : ordreIA()) sb.append(sb.length() > 0 ? ", " : "").append(nomIA(id));
+            return sb.toString();
         }
 
         @JavascriptInterface
@@ -338,22 +415,30 @@ public class MainActivity extends Activity {
             }).start();
         }
 
-        /** IA en ligne avec la clé rangée dans le téléphone (jamais exposée à la page).
-         *  Clé Google (AIza…) -> Gemini gratuit ; clé Anthropic (sk-ant…) -> Claude.
-         *  Réponse unifiée : {"text": "..."} */
+        /** IA en ligne avec les clés rangées dans le téléphone (jamais exposées à la page).
+         *  Essaie l'IA préférée, puis les autres si elle ne répond pas.
+         *  Réponse unifiée : {"text": "...", "ia": "Grok"} */
         @JavascriptInterface
         public void claude(String id, String messagesJson, String system, int maxTokens) {
             new Thread(() -> {
-                String key = prefs.getString("claude", "");
-                if (key.isEmpty()) { reply(id, "401", "clé IA manquante"); return; }
-                try {
-                    JSONArray msgs = new JSONArray(messagesJson);
-                    String[] r = key.startsWith("sk-ant") ? callClaude(key, msgs, system, maxTokens)
-                                                          : callGemini(key, msgs, system, maxTokens);
-                    reply(id, r[0], r[1]);
-                } catch (Exception e) {
-                    reply(id, "0", String.valueOf(e.getMessage()));
+                ArrayList<String> ordre = ordreIA();
+                if (ordre.isEmpty()) { reply(id, "401", "clé IA manquante"); return; }
+                String[] r = {"0", "aucune IA n'a répondu"};
+                StringBuilder echecs = new StringBuilder();
+                for (String ia : ordre) {
+                    try {
+                        r = appelIA(ia, new JSONArray(messagesJson), system, maxTokens);
+                    } catch (Exception e) {
+                        r = new String[]{"0", String.valueOf(e.getMessage())};
+                    }
+                    if ("200".equals(r[0])) {
+                        try { r[1] = new JSONObject(r[1]).put("ia", nomIA(ia)).toString(); } catch (Exception ignored) { }
+                        reply(id, "200", r[1]);
+                        return;
+                    }
+                    echecs.append(echecs.length() > 0 ? " ; " : "").append(nomIA(ia)).append(" (").append(r[0]).append(")");
                 }
+                reply(id, r[0], "aucune IA n'a répondu : " + echecs);
             }).start();
         }
 
@@ -362,15 +447,25 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void vision(String id, String imageB64, String question, String system, int maxTokens) {
             new Thread(() -> {
-                String key = prefs.getString("claude", "");
-                if (key.isEmpty()) { reply(id, "401", "clé IA manquante"); return; }
-                try {
-                    String[] r = key.startsWith("sk-ant") ? visionClaude(key, imageB64, question, system, maxTokens)
-                                                          : visionGemini(key, imageB64, question, system, maxTokens);
-                    reply(id, r[0], r[1]);
-                } catch (Exception e) {
-                    reply(id, "0", String.valueOf(e.getMessage()));
+                String g = cle("gemini"), c = cle("claude");
+                if (g.isEmpty() && c.isEmpty()) {
+                    reply(id, "401", "pour les images, il faut une clé Gemini (gratuite) ou Claude");
+                    return;
                 }
+                String[] r = {"0", ""};
+                for (String ia : "claude".equals(prefs.getString("ia_pref", "")) ? new String[]{"claude", "gemini"}
+                                                                                  : new String[]{"gemini", "claude"}) {
+                    String k = cle(ia);
+                    if (k.isEmpty()) continue;
+                    try {
+                        r = "claude".equals(ia) ? visionClaude(k, imageB64, question, system, maxTokens)
+                                                : visionGemini(k, imageB64, question, system, maxTokens);
+                    } catch (Exception e) {
+                        r = new String[]{"0", String.valueOf(e.getMessage())};
+                    }
+                    if ("200".equals(r[0])) break;
+                }
+                reply(id, r[0], r[1]);
             }).start();
         }
 
@@ -435,6 +530,62 @@ public class MainActivity extends Activity {
             }).start();
             return "Signal de rallumage envoyé. Le PC démarre, je me reconnecte dès qu'il répond.";
         }
+    }
+
+    /** Appelle une IA par son identifiant. Réponse : {"200", {"text": ...}} ou {code, erreur}. */
+    private String[] appelIA(String ia, JSONArray msgs, String system, int maxTokens) throws Exception {
+        String k = cle(ia);
+        switch (ia) {
+            case "gemini": return callGemini(k, msgs, system, maxTokens);
+            case "claude": return callClaude(k, msgs, system, maxTokens);
+            case "grok": return callCompatible("https://api.x.ai/v1", k, msgs, system, maxTokens,
+                    new String[]{"grok-4-latest", "grok-4", "grok-3-latest", "grok-3-mini"}, "grok");
+            case "deepseek": return callCompatible("https://api.deepseek.com", k, msgs, system, maxTokens,
+                    new String[]{"deepseek-chat"}, "deepseek");
+            case "groq": return callCompatible("https://api.groq.com/openai/v1", k, msgs, system, maxTokens,
+                    new String[]{"llama-3.3-70b-versatile", "openai/gpt-oss-120b"}, "");
+            default: return new String[]{"0", "IA inconnue"};
+        }
+    }
+
+    /** IA au format « OpenAI » (Grok, DeepSeek, Groq). Si aucun modèle connu n'existe plus,
+     *  on demande la liste des modèles à l'IA et on prend le premier qui convient. */
+    private String[] callCompatible(String base, String key, JSONArray msgs, String system, int maxTokens,
+                                    String[] modeles, String filtre) throws Exception {
+        JSONArray m = new JSONArray();
+        if (system != null && !system.isEmpty()) m.put(new JSONObject().put("role", "system").put("content", system));
+        for (int i = 0; i < msgs.length(); i++) {
+            JSONObject x = msgs.getJSONObject(i);
+            m.put(new JSONObject().put("role", "assistant".equals(x.optString("role")) ? "assistant" : "user")
+                    .put("content", x.optString("content")));
+        }
+        JSONObject h = new JSONObject().put("content-type", "application/json").put("authorization", "Bearer " + key);
+        ArrayList<String> essais = new ArrayList<>(java.util.Arrays.asList(modeles));
+        String[] r = null;
+        for (int i = 0; i < essais.size() && i < 6; i++) {
+            JSONObject b = new JSONObject().put("model", essais.get(i)).put("messages", m)
+                    .put("max_tokens", Math.max(maxTokens, 400)).put("temperature", 0.6);
+            r = httpCall("POST", base + "/chat/completions", h, b.toString(), 60000);
+            if ("200".equals(r[0])) {
+                JSONObject msg = new JSONObject(r[1]).getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+                String txt = msg.optString("content", "").replaceAll("(?s)<think>.*?</think>", "").trim();
+                return new String[]{"200", new JSONObject().put("text", txt).toString()};
+            }
+            // clé refusée, plus de crédit, trop de demandes : inutile d'essayer un autre modèle
+            if ("401".equals(r[0]) || "402".equals(r[0]) || "403".equals(r[0]) || "429".equals(r[0])) break;
+            if (i == essais.size() - 1 && !filtre.isEmpty()) {
+                String[] l = httpCall("GET", base + "/models", h, "", 15000);
+                if ("200".equals(l[0])) {
+                    JSONArray d = new JSONObject(l[1]).optJSONArray("data");
+                    for (int j = 0; d != null && j < d.length(); j++) {
+                        String id = d.getJSONObject(j).optString("id");
+                        if (id.contains(filtre) && !id.contains("image") && !id.contains("vision")
+                                && !id.contains("embed") && !essais.contains(id)) essais.add(id);
+                    }
+                }
+            }
+        }
+        return r;
     }
 
     private String[] callGemini(String key, JSONArray msgs, String system, int maxTokens) throws Exception {

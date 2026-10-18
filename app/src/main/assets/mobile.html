@@ -126,6 +126,7 @@
   .tile.rouge, .tile.rouge .i { color: #ff8a7e; }
   .row { display: flex; gap: 10px; margin-top: 18px; }
   .row button { flex: 1; padding: 15px; border-radius: 14px; background: rgba(242, 231, 226, .06); font-size: 16px; }
+  .row button.or { background: var(--or); color: #140c04; font-weight: 600; }
   .row button.danger { background: var(--braise); color: #fff; }
   .news { padding: 14px 0 14px 12px; border-bottom: 1px solid rgba(242, 231, 226, .07); border-left: 3px solid #333; margin-left: -2px; }
   .news.fort { border-left-color: var(--braise); } .news.moyen { border-left-color: var(--or); }
@@ -249,7 +250,7 @@
   </div></div>
   <div class="group"><h3>PC</h3><div class="tiles">
     <button type="button" class="tile" id="pcWake"><svg class="i"><use href="#i-power"/></svg>Rallumer le PC</button>
-    <button type="button" class="tile rouge" id="pcSleep"><svg class="i"><use href="#i-power"/></svg>Mettre le PC en veille</button>
+    <button type="button" class="tile rouge" id="pcSleep"><svg class="i"><use href="#i-power"/></svg>Je pars / veille du PC</button>
   </div></div>
 </div></div>
 
@@ -278,11 +279,13 @@
 
 <div class="modal" id="sleepModal"><div class="sheet">
   <div class="handle"></div>
-  <h2>Mettre le PC en veille ?</h2>
-  <p>Le PC s'endort complètement : plus de bruit, plus de lumière. L'appli continue de marcher sans lui
-     (prix, actus, annonces, discussion), et « Rallumer le PC » le réveille.</p>
+  <h2>Tu pars ?</h2>
+  <p><b>Je pars</b> : écrans éteints, musique coupée, mais le PC reste allumé. Jarvis continue de surveiller
+     le gold, tes rappels et Telegram, et tu peux lui écrire d'ici, même en 4G.</p>
+  <p style="margin-top:8px">La <b>vraie veille</b> éteint tout : depuis la 4G, impossible de rallumer le PC.</p>
+  <div class="row"><button type="button" class="or" data-cmd="je pars" data-pc="1">Je pars (PC allumé)</button></div>
   <div class="row"><button type="button" data-close>Annuler</button>
-  <button type="button" class="danger" id="sleepGo">Mettre en veille</button></div>
+  <button type="button" class="danger" id="sleepGo">Vraie veille</button></div>
 </div></div>
 
 <script src="ruban.js"></script>

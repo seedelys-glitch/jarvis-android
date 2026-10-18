@@ -447,23 +447,26 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void vision(String id, String imageB64, String question, String system, int maxTokens) {
             new Thread(() -> {
-                String g = cle("gemini"), c = cle("claude");
-                if (g.isEmpty() && c.isEmpty()) {
-                    reply(id, "401", "pour les images, il faut une clé Gemini (gratuite) ou Claude");
-                    return;
-                }
-                String[] r = {"0", ""};
-                for (String ia : "claude".equals(prefs.getString("ia_pref", "")) ? new String[]{"claude", "gemini"}
-                                                                                  : new String[]{"gemini", "claude"}) {
+                // Images : Gemini, Grok ou Claude (l'IA préférée d'abord si elle sait lire les images)
+                ArrayList<String> ordre = new ArrayList<>();
+                String pref = prefs.getString("ia_pref", "auto");
+                if ("gemini".equals(pref) || "grok".equals(pref) || "claude".equals(pref)) ordre.add(pref);
+                for (String ia : new String[]{"gemini", "grok", "claude"}) if (!ordre.contains(ia)) ordre.add(ia);
+                String[] r = {"401", "pour les images, il faut une clé Gemini (gratuite), Grok ou Claude"};
+                for (String ia : ordre) {
                     String k = cle(ia);
                     if (k.isEmpty()) continue;
                     try {
                         r = "claude".equals(ia) ? visionClaude(k, imageB64, question, system, maxTokens)
-                                                : visionGemini(k, imageB64, question, system, maxTokens);
+                          : "grok".equals(ia) ? visionGrok(k, imageB64, question, system, maxTokens)
+                          : visionGemini(k, imageB64, question, system, maxTokens);
                     } catch (Exception e) {
                         r = new String[]{"0", String.valueOf(e.getMessage())};
                     }
-                    if ("200".equals(r[0])) break;
+                    if ("200".equals(r[0])) {
+                        try { r[1] = new JSONObject(r[1]).put("ia", nomIA(ia)).toString(); } catch (Exception ignored) { }
+                        break;
+                    }
                 }
                 reply(id, r[0], r[1]);
             }).start();
@@ -652,6 +655,45 @@ public class MainActivity extends Activity {
                 return new String[]{"200", new JSONObject().put("text", sb.toString().trim()).toString()};
             }
             if (!"404".equals(r[0])) break;
+        }
+        return r;
+    }
+
+    /** Analyse d'image par Grok (format « OpenAI », image en data URL). */
+    private String[] visionGrok(String key, String imageB64, String question, String system, int maxTokens)
+            throws Exception {
+        JSONArray m = new JSONArray();
+        if (system != null && !system.isEmpty()) m.put(new JSONObject().put("role", "system").put("content", system));
+        m.put(new JSONObject().put("role", "user").put("content", new JSONArray()
+                .put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject()
+                        .put("url", "data:image/jpeg;base64," + imageB64).put("detail", "high")))
+                .put(new JSONObject().put("type", "text").put("text", question))));
+        JSONObject h = new JSONObject().put("content-type", "application/json").put("authorization", "Bearer " + key);
+        ArrayList<String> essais = new ArrayList<>(java.util.Arrays.asList(
+                "grok-4-latest", "grok-4", "grok-2-vision-latest"));
+        String[] r = null;
+        for (int i = 0; i < essais.size() && i < 7; i++) {
+            JSONObject b = new JSONObject().put("model", essais.get(i)).put("messages", m)
+                    .put("max_tokens", Math.max(maxTokens, 800)).put("temperature", 0.4);
+            r = httpCall("POST", "https://api.x.ai/v1/chat/completions", h, b.toString(), 90000);
+            if ("200".equals(r[0])) {
+                String txt = new JSONObject(r[1]).getJSONArray("choices").getJSONObject(0)
+                        .getJSONObject("message").optString("content", "").trim();
+                return new String[]{"200", new JSONObject().put("text", txt).toString()};
+            }
+            if ("401".equals(r[0]) || "402".equals(r[0]) || "403".equals(r[0]) || "429".equals(r[0])) break;
+            // modèles connus introuvables : on demande à Grok la liste de ses modèles
+            if (i == essais.size() - 1) {
+                String[] l = httpCall("GET", "https://api.x.ai/v1/models", h, "", 15000);
+                if ("200".equals(l[0])) {
+                    JSONArray d = new JSONObject(l[1]).optJSONArray("data");
+                    for (int j = 0; d != null && j < d.length(); j++) {
+                        String id = d.getJSONObject(j).optString("id");
+                        if (id.contains("grok") && !id.contains("image") && !id.contains("embed")
+                                && !essais.contains(id)) essais.add(id);
+                    }
+                }
+            }
         }
         return r;
     }

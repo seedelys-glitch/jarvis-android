@@ -779,7 +779,7 @@ function shrink(file) {  // image réduite à 1600 px (plus rapide à envoyer et
   });
 }
 function visionPhone(dataUrl, question) {  // PC éteint : l'IA du téléphone (Gemini gratuit) regarde l'image
-  if (!A.hasClaude() || !A.vision) return Promise.resolve("Le PC est éteint ou loin. Pour analyser une image sans lui, ajoute ta clé IA gratuite (Gemini) dans les réglages.");
+  if (!A.hasClaude() || !A.vision) return Promise.resolve("Le PC est éteint ou loin. Pour analyser une image sans lui, ajoute une clé Gemini (gratuite), Grok ou Claude dans les réglages.");
   const system = "Tu es Jarvis, l'assistant de Jabran, trader de gold (Micro Gold MGC). Tu regardes une image : " +
     "le plus souvent une capture de graphique TradingView. Décris ce qui compte : tendance et structure (BOS), " +
     "EMA 200 si elle est visible, zones de Fibonacci et FVG s'il y en a, niveaux importants, et ce qu'il faudrait attendre. " +

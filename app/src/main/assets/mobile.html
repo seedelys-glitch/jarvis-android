@@ -87,6 +87,11 @@
   .nopc .needpc { opacity: .4; }
 
   /* zone de saisie : le micro d'abord */
+  /* menu déroulant : choisir une action sans parler */
+  .menu-row { display: flex; gap: 8px; padding: 6px 14px 0; }
+  .menu-row select { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--os); background: var(--nuit-2);
+    border: 1px solid var(--trait); border-radius: 12px; padding: 10px 12px; }
+  .menu-row button { flex: none; padding: 0 16px; border-radius: 12px; color: var(--or-clair); border: 1px solid rgba(210, 167, 90, .35); }
   .composer { display: flex; align-items: center; gap: 10px; padding: 8px 14px 14px; }
   .field { flex: 1; min-width: 0; display: flex; align-items: center; height: 52px; padding: 0 6px 0 16px; border-radius: 26px;
     background: var(--nuit-2); border: 1px solid rgba(242, 231, 226, .1); }
@@ -193,6 +198,11 @@
   <button type="button" id="moreBtn"><svg class="i"><use href="#i-more"/></svg>Plus</button>
 </nav>
 
+<form class="menu-row" id="actForm" autocomplete="off">
+  <select id="actSel" aria-label="Choisir une action pour Jarvis"></select>
+  <button type="submit">OK</button>
+</form>
+
 <form class="composer" id="form" autocomplete="off">
   <div class="field"><input type="text" id="input" placeholder="Écris à Jarvis" enterkeyhint="send" aria-label="Message pour Jarvis">
     <button type="button" id="photo" aria-label="Envoyer une image à analyser"><svg class="i"><use href="#i-photo"/></svg></button>
@@ -204,6 +214,11 @@
 <div class="modal" id="moreModal"><div class="sheet">
   <div class="handle"></div>
   <h2>Toutes les commandes</h2>
+  <div class="group"><h3>Chef d'orchestre</h3><div class="tiles">
+    <button type="button" class="tile needpc" id="chefBtn"><svg class="i"><use href="#i-desk"/></svg>Mes agents</button>
+    <button type="button" class="tile needpc" data-cmd="état de mes agents" data-pc="1"><svg class="i"><use href="#i-check"/></svg>État des agents</button>
+    <button type="button" class="tile needpc" data-cmd="rapport des agents" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Rapport des agents</button>
+  </div></div>
   <div class="group"><h3>Trading</h3><div class="tiles">
     <button type="button" class="tile" id="dashBtn"><svg class="i"><use href="#i-chart"/></svg>Tableau de bord</button>
     <button type="button" class="tile needpc" data-cmd="fais-moi le bilan de la semaine" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Bilan de la semaine</button>
@@ -246,6 +261,14 @@
   <div class="row"><button type="button" data-close>Fermer</button></div>
 </div></div>
 
+<div class="modal" id="chefModal"><div class="sheet">
+  <div class="handle"></div>
+  <h2>Chef d'orchestre</h2>
+  <p>Tous tes bots et agents IA : Jarvis les surveille, les relance s'ils plantent et te fait un rapport à 15h15.</p>
+  <div id="chefBody">Chargement…</div>
+  <div class="row"><button type="button" data-close>Fermer</button></div>
+</div></div>
+
 <div class="modal" id="dashModal"><div class="sheet">
   <div class="handle"></div>
   <h2>Tableau de bord</h2>
@@ -264,6 +287,133 @@
 
 <script src="ruban.js"></script>
 <script src="tableau.js"></script>
+<script>
+// Menu déroulant des actions de Jarvis (écran du PC, appli web) : choisir une action sans parler.
+// Chaque action est une phrase envoyée à Jarvis, exactement comme si tu la disais.
+// "#chef" = ouvrir la page Chef d'orchestre.
+const JARVIS_ACTIONS = [
+  ["Chef d'orchestre", [
+    ["Voir tous mes agents", "#chef"],
+    ["État de mes agents", "état de mes agents"],
+    ["Rapport des agents maintenant", "rapport des agents"],
+  ]],
+  ["Trading", [
+    ["Lancer le desk sur le gold", "lance le desk sur le gold"],
+    ["Où en est le desk", "où en est le desk"],
+    ["État de la stratégie (biais, zones)", "état de la stratégie"],
+    ["Couper les alertes de stratégie", "coupe les alertes de stratégie"],
+    ["Remettre les alertes de stratégie", "remets les alertes de stratégie"],
+    ["Vérifier mon setup", "vérifie mon setup"],
+    ["Mes graphiques sur Telegram", "envoie-moi mes graphiques"],
+    ["Ma journée", "où j'en suis aujourd'hui"],
+    ["Je rentre en position", "je vais rentrer en position"],
+    ["Je suis sorti de ma position", "je suis sorti de ma position"],
+    ["Mes alertes de prix", "mes alertes"],
+    ["Importer mes trades", "importe mes trades"],
+    ["Bilan de la semaine", "fais-moi le bilan de la semaine"],
+    ["Mode concentration", "mode concentration"],
+    ["Fin de la concentration", "fin de la concentration"],
+  ]],
+  ["Marché", [
+    ["Prix du gold", "prix du gold"],
+    ["Annonces du jour", "les annonces du jour"],
+    ["Dernières actus", "les dernières actus"],
+    ["Heures de prière", "c'est quand la prière"],
+  ]],
+  ["Assistant", [
+    ["Mes rappels", "mes rappels"],
+    ["Ma liste", "ma liste"],
+    ["Mes notes", "mes notes"],
+  ]],
+  ["Bureau", [
+    ["Réveiller le bureau", "réveille-toi"],
+    ["Bureau en veille", "mets-toi en veille"],
+    ["Musique suivante", "musique suivante"],
+    ["Couper la musique", "pause"],
+    ["Diagnostic de Jarvis", "diagnostic"],
+  ]],
+];
+
+// Remplit un <select> avec toutes les actions, rangées par groupe.
+function fillActions(select) {
+  const first = document.createElement("option");
+  first.value = ""; first.textContent = "Choisis une action…"; first.disabled = true; first.selected = true;
+  select.append(first);
+  for (const [group, items] of JARVIS_ACTIONS) {
+    const g = document.createElement("optgroup"); g.label = group;
+    for (const [label, cmd] of items) {
+      const o = document.createElement("option"); o.value = cmd; o.textContent = label; g.append(o);
+    }
+    select.append(g);
+  }
+}
+
+// Liste des agents du chef d'orchestre (page /chef et appli web).
+// renderAgents(el, data, onAction) : data = réponse de /api/agents ; onAction(id, action) au clic d'un bouton.
+const AGENT_ETATS = { ok: "En marche", pause: "En pause", panne: "En panne", attente: "Pas encore prêt" };
+const AGENT_BOUTONS = { marche: "Allumer", arret: "Couper", relance: "Relancer", lancer: "Lancer un desk" };
+
+(function () {
+  if (document.getElementById("chef-css")) return;
+  const s = document.createElement("style"); s.id = "chef-css";
+  s.textContent = `
+  .ag { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(210,167,90,.14); }
+  .ag:last-child { border-bottom: 0; }
+  .ag-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .ag-dot.ok { background: #5cc58c; box-shadow: 0 0 9px rgba(92,197,140,.7); }
+  .ag-dot.pause { background: #d2a75a; }
+  .ag-dot.panne { background: #ff4a3d; box-shadow: 0 0 9px rgba(255,74,61,.8); }
+  .ag-dot.attente { background: transparent; border: 1.5px solid #8c7774; }
+  .ag-txt { flex: 1; min-width: 0; }
+  .ag-nom { font-weight: 600; color: #f2e7e2; }
+  .ag-etat { font-size: 12px; margin-left: 6px; color: #8c7774; text-transform: uppercase; letter-spacing: .06em; }
+  .ag-etat.panne { color: #ff4a3d; } .ag-etat.ok { color: #5cc58c; }
+  .ag-role { font-size: 13px; color: #8c7774; }
+  .ag-detail { font-size: 13.5px; color: rgba(242,231,226,.85); margin-top: 2px; overflow-wrap: anywhere; }
+  .ag-btn { flex: none; font: inherit; font-size: 13.5px; padding: 8px 12px; border-radius: 10px; cursor: pointer;
+    color: #f0d296; background: rgba(210,167,90,.1); border: 1px solid rgba(210,167,90,.35); }
+  .ag-btn.rouge { color: #ff4a3d; border-color: rgba(255,74,61,.4); background: rgba(255,74,61,.08); }
+  .ag-btn:disabled { opacity: .5; }
+  .ag-resume { font-size: 14px; color: #8c7774; margin-bottom: 8px; }
+  .ag-msg { margin-top: 10px; font-size: 14px; color: #f0d296; min-height: 1.3em; }`;
+  document.head.append(s);
+})();
+
+function renderAgents(el, data, onAction) {
+  el.textContent = "";
+  const ags = (data && data.agents) || [];
+  if (!ags.length) { el.textContent = "Le chef d'orchestre n'est pas encore prêt."; return; }
+  const n = (e) => ags.filter(a => a.etat === e).length;
+  const res = document.createElement("div"); res.className = "ag-resume";
+  res.textContent = `${n("ok")} en marche · ${n("pause")} en pause · ${n("panne")} en panne · ${n("attente")} à venir`;
+  el.append(res);
+  for (const a of ags) {
+    const row = document.createElement("div"); row.className = "ag";
+    const dot = document.createElement("span"); dot.className = "ag-dot " + a.etat;
+    const txt = document.createElement("div"); txt.className = "ag-txt";
+    const nom = document.createElement("div"); nom.className = "ag-nom"; nom.textContent = a.nom;
+    const et = document.createElement("span"); et.className = "ag-etat " + a.etat; et.textContent = AGENT_ETATS[a.etat] || a.etat;
+    nom.append(et);
+    const role = document.createElement("div"); role.className = "ag-role"; role.textContent = a.role;
+    const det = document.createElement("div"); det.className = "ag-detail"; det.textContent = a.detail;
+    txt.append(nom, role, det);
+    row.append(dot, txt);
+    for (const act of a.actions || []) {
+      const b = document.createElement("button"); b.type = "button";
+      b.className = "ag-btn" + (act === "arret" ? " rouge" : "");
+      // garde-fou : « marche / arrêt » = mode concentration
+      b.textContent = a.id === "discipline" ? (act === "marche" ? "Concentration" : "Fin concentration")
+        : (AGENT_BOUTONS[act] || act);
+      b.addEventListener("click", async () => { b.disabled = true; try { await onAction(a.id, act); } finally { b.disabled = false; } });
+      row.append(b);
+    }
+    el.append(row);
+  }
+  const msg = document.createElement("div"); msg.className = "ag-msg"; msg.id = "agMsg";
+  el.append(msg);
+}
+
+</script>
 <script>
 // =====================================================================================
 // Jarvis mobile : marche AVEC le PC (quand il est joignable : Wi-Fi maison ou Tailscale)
@@ -566,6 +716,26 @@ $("voiceBtn").addEventListener("click", () => { speakOn = !speakOn; try { localS
 $("setBtn").addEventListener("click", () => A.settings());
 $("link").addEventListener("click", async () => { $("state").textContent = "Recherche…"; await detectPc(); refresh(); });
 $("moreBtn").addEventListener("click", () => openSheet("moreModal"));
+// Chef d'orchestre : la liste des agents (sur le PC), avec leurs boutons
+async function openChef() {
+  closeSheets();
+  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : les agents tournent sur le PC.", "jarvis"); return; }
+  openSheet("chefModal"); const body = $("chefBody"); body.textContent = "Chargement…";
+  const act = async (id, action) => {
+    const d = await pcApi("/api/agents", { id, action });
+    renderAgents(body, d, act); const m = $("agMsg"); if (m) m.textContent = d.message || "";
+  };
+  try { renderAgents(body, await pcApi("/api/agents"), act); } catch (e) { body.textContent = "Le PC ne répond pas."; }
+}
+$("chefBtn").addEventListener("click", openChef);
+// Menu déroulant : une action choisie = la même phrase que si tu la disais
+fillActions($("actSel"));
+$("actForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const cmd = $("actSel").value; if (!cmd) return;
+  $("actSel").selectedIndex = 0;
+  if (cmd === "#chef") openChef(); else handle(cmd);
+});
 document.querySelectorAll(".modal").forEach(m => m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-close]")) m.classList.remove("open"); }));
 $("pcSleep").addEventListener("click", () => { closeSheets(); if (!PC) { add("Le PC est déjà éteint ou injoignable.", "jarvis"); return; } openSheet("sleepModal"); });
 $("sleepGo").addEventListener("click", async () => { closeSheets(); try { const r = await pcApi("/api/pc_sleep", {}); (r.replies || []).forEach(t => { add(t, "jarvis"); say(t); }); } catch (e) {} setTimeout(detectPc, 8000); });

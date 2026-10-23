@@ -38,6 +38,10 @@
     .link { padding: 8px 4px; font-size: 13px; }
     .ib { width: 38px; }
   }
+  @media (max-width: 400px) {  /* place pour les onglets Bureau et Desk */
+    .wordmark { letter-spacing: .14em; }
+    .camtab { margin-left: 2px; }
+  }
   .led { width: 7px; height: 7px; border-radius: 50%; background: #3a1214; flex: none; }
   .led.on { background: var(--braise-vive); box-shadow: 0 0 8px var(--braise-vive); }
   .ib { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: rgba(242, 231, 226, .8); }
@@ -120,6 +124,11 @@
   .sheet.cam-sheet { max-height: 94vh; padding-top: 10px; }
   .cam-ecran { position: relative; aspect-ratio: 16 / 9; margin: 0 -18px; background: #000; }
   @media (prefers-reduced-motion: reduce) { .camtab .rec { animation: none; } }
+  /* chat avec le chef de desk */
+  .camtab.desktab .rec { display: none; }
+  .sheet.desk-sheet { max-height: 94vh; display: flex; flex-direction: column; }
+  .desk-chat { height: min(72vh, 640px); display: flex; }
+  .desk-chat > .dk { flex: 1; }
   .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .7); display: none; align-items: flex-end; z-index: 5; }
   .modal.open { display: flex; }
   .sheet { width: 100%; max-height: 88vh; overflow-y: auto; background: var(--nuit-2); border-top: 1px solid var(--trait);
@@ -183,6 +192,7 @@
 <header class="bar">
   <span class="wordmark">J.A.R.V.I.S.</span>
   <button class="camtab needpc" id="camTab" type="button" aria-label="Voir le bureau des agents IA"><i class="rec"></i><svg class="i"><use href="#i-cam"/></svg><span>Bureau</span></button>
+  <button class="camtab desktab needpc" id="deskTab" type="button" aria-label="Parler au chef de desk"><i class="rec"></i><svg class="i"><use href="#i-desk"/></svg><span>Desk</span></button>
   <button class="link" id="link" type="button" aria-label="Chercher le PC"><i class="led" id="dot"></i><span id="state">…</span></button>
   <button class="ib" id="voiceBtn" type="button" aria-label="Voix de Jarvis"><svg class="i"><use href="#i-sound"/></svg></button>
   <button class="ib" id="setBtn" type="button" aria-label="Réglages"><svg class="i"><use href="#i-gear"/></svg></button>
@@ -231,6 +241,7 @@
   <div class="group"><h3>Chef d'orchestre</h3><div class="tiles">
     <button type="button" class="tile needpc" id="chefBtn"><svg class="i"><use href="#i-desk"/></svg>Mes agents</button>
     <button type="button" class="tile needpc" id="camBtn"><svg class="i"><use href="#i-cam"/></svg>Caméra du bureau</button>
+    <button type="button" class="tile needpc" id="deskBtn"><svg class="i"><use href="#i-desk"/></svg>Chef de desk</button>
     <button type="button" class="tile needpc" data-cmd="état de mes agents" data-pc="1"><svg class="i"><use href="#i-check"/></svg>État des agents</button>
     <button type="button" class="tile needpc" data-cmd="rapport des agents" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Rapport des agents</button>
   </div></div>
@@ -266,6 +277,13 @@
     <button type="button" class="tile" id="pcWake"><svg class="i"><use href="#i-power"/></svg>Rallumer le PC</button>
     <button type="button" class="tile rouge" id="pcSleep"><svg class="i"><use href="#i-power"/></svg>Je pars / veille du PC</button>
   </div></div>
+</div></div>
+
+<div class="modal" id="deskModal"><div class="sheet desk-sheet">
+  <div class="handle"></div>
+  <h2>Chef de desk</h2>
+  <div class="desk-chat" id="deskChat"></div>
+  <div class="row"><button type="button" data-close>Fermer</button></div>
 </div></div>
 
 <div class="modal" id="camModal"><div class="sheet cam-sheet">
@@ -312,6 +330,7 @@
 <script src="ruban.js"></script>
 <script src="tableau.js"></script>
 <script src="bureau.js"></script>
+<script src="desk.js"></script>
 <script>
 // Menu déroulant des actions de Jarvis (écran du PC, appli web) : choisir une action sans parler.
 // Chaque action est une phrase envoyée à Jarvis, exactement comme si tu la disais.
@@ -320,6 +339,7 @@ const JARVIS_ACTIONS = [
   ["Chef d'orchestre", [
     ["Voir tous mes agents", "#chef"],
     ["Caméra du bureau des agents", "#bureau"],
+    ["Parler au chef de desk", "#desk"],
     ["État de mes agents", "état de mes agents"],
     ["Rapport des agents maintenant", "rapport des agents"],
   ]],
@@ -768,13 +788,33 @@ new MutationObserver(() => { if (!$("camModal").classList.contains("open") && CA
   .observe($("camModal"), { attributes: true, attributeFilter: ["class"] });
 $("camTab").addEventListener("click", openCam);
 $("camBtn").addEventListener("click", openCam);
+// Chat avec le chef de desk et ses spécialistes (sur le PC) : écrit ou micro du téléphone, réponses lues à voix haute
+let DESK = null;
+async function openDesk() {
+  closeSheets();
+  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : le chef de desk est sur le PC.", "jarvis"); return; }
+  openSheet("deskModal");
+  if (DESK) DESK.detruire();
+  DESK = DeskChat.creer($("deskChat"), {
+    api: (chemin, corps) => pcApi(chemin, corps, 15000), origine: "appli", parler: say,
+    micro: () => new Promise((ok, ko) => {  // reconnaissance vocale du téléphone, comme le gros bouton micro
+      const avant = window.__onSpeech;
+      window.__onSpeech = (t, err) => { window.__onSpeech = avant; if (t) ok(t); else ko(new Error(err || "rien")); };
+      A.stopSpeak(); A.listen();
+    }),
+  });
+}
+new MutationObserver(() => { if (!$("deskModal").classList.contains("open") && DESK) { DESK.detruire(); DESK = null; } })
+  .observe($("deskModal"), { attributes: true, attributeFilter: ["class"] });
+$("deskTab").addEventListener("click", openDesk);
+$("deskBtn").addEventListener("click", openDesk);
 // Menu déroulant : une action choisie = la même phrase que si tu la disais
 fillActions($("actSel"));
 $("actForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const cmd = $("actSel").value; if (!cmd) return;
   $("actSel").selectedIndex = 0;
-  if (cmd === "#chef") openChef(); else if (cmd === "#bureau") openCam(); else handle(cmd);
+  if (cmd === "#chef") openChef(); else if (cmd === "#bureau") openCam(); else if (cmd === "#desk") openDesk(); else handle(cmd);
 });
 document.querySelectorAll(".modal").forEach(m => m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-close]")) m.classList.remove("open"); }));
 $("pcSleep").addEventListener("click", () => { closeSheets(); if (!PC) { add("Le PC est déjà éteint ou injoignable.", "jarvis"); return; } openSheet("sleepModal"); });

@@ -109,6 +109,17 @@
   @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(227, 36, 43, .22), 0 0 24px rgba(227, 36, 43, .5); } }
 
   /* feuilles du bas */
+  /* onglet et fenêtre de la caméra du bureau des agents */
+  .camtab { display: flex; align-items: center; gap: 5px; padding: 6px 9px; margin-left: 6px; border-radius: 999px;
+    font-family: "Barlow Condensed", sans-serif; font-weight: 500; font-size: 13px; letter-spacing: .08em; color: var(--or-clair);
+    border: 1px solid rgba(210, 167, 90, .35); background: rgba(210, 167, 90, .07); }
+  .camtab .rec { width: 7px; height: 7px; border-radius: 50%; background: #ff4a3d; box-shadow: 0 0 6px #ff4a3d; animation: rec 1.4s steps(1) infinite; }
+  @keyframes rec { 50% { opacity: .15; } }
+  .camtab svg.i { width: 17px; height: 17px; }
+  @media (max-width: 400px) { .camtab span { display: none; } .camtab { padding: 6px 8px; margin-left: 2px; } }
+  .sheet.cam-sheet { max-height: 94vh; padding-top: 10px; }
+  .cam-ecran { position: relative; aspect-ratio: 16 / 9; margin: 0 -18px; background: #000; }
+  @media (prefers-reduced-motion: reduce) { .camtab .rec { animation: none; } }
   .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .7); display: none; align-items: flex-end; z-index: 5; }
   .modal.open { display: flex; }
   .sheet { width: 100%; max-height: 88vh; overflow-y: auto; background: var(--nuit-2); border-top: 1px solid var(--trait);
@@ -161,6 +172,7 @@
   <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5.5v13M16 5.5v13"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="3.5" y="7" width="12" height="10" rx="2"/><path d="M15.5 10.5l5-3v9l-5-3z"/></symbol>
   <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.5v8"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/></symbol>
   <symbol id="i-photo" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   <symbol id="i-desk" viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.2"/><circle cx="17" cy="8" r="2.2"/><circle cx="12" cy="6.5" r="2.2"/><path d="M3.5 18a3.5 3.5 0 0 1 7 0M13.5 18a3.5 3.5 0 0 1 7 0M8.5 15.5a3.5 3.5 0 0 1 7 0"/></symbol>
@@ -170,6 +182,7 @@
 
 <header class="bar">
   <span class="wordmark">J.A.R.V.I.S.</span>
+  <button class="camtab needpc" id="camTab" type="button" aria-label="Voir le bureau des agents IA"><i class="rec"></i><svg class="i"><use href="#i-cam"/></svg><span>Bureau</span></button>
   <button class="link" id="link" type="button" aria-label="Chercher le PC"><i class="led" id="dot"></i><span id="state">…</span></button>
   <button class="ib" id="voiceBtn" type="button" aria-label="Voix de Jarvis"><svg class="i"><use href="#i-sound"/></svg></button>
   <button class="ib" id="setBtn" type="button" aria-label="Réglages"><svg class="i"><use href="#i-gear"/></svg></button>
@@ -217,6 +230,7 @@
   <h2>Toutes les commandes</h2>
   <div class="group"><h3>Chef d'orchestre</h3><div class="tiles">
     <button type="button" class="tile needpc" id="chefBtn"><svg class="i"><use href="#i-desk"/></svg>Mes agents</button>
+    <button type="button" class="tile needpc" id="camBtn"><svg class="i"><use href="#i-cam"/></svg>Caméra du bureau</button>
     <button type="button" class="tile needpc" data-cmd="état de mes agents" data-pc="1"><svg class="i"><use href="#i-check"/></svg>État des agents</button>
     <button type="button" class="tile needpc" data-cmd="rapport des agents" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Rapport des agents</button>
   </div></div>
@@ -252,6 +266,13 @@
     <button type="button" class="tile" id="pcWake"><svg class="i"><use href="#i-power"/></svg>Rallumer le PC</button>
     <button type="button" class="tile rouge" id="pcSleep"><svg class="i"><use href="#i-power"/></svg>Je pars / veille du PC</button>
   </div></div>
+</div></div>
+
+<div class="modal" id="camModal"><div class="sheet cam-sheet">
+  <div class="handle"></div>
+  <div class="cam-ecran" id="camEcran"></div>
+  <div id="camListe" aria-live="polite"></div>
+  <div class="row"><button type="button" data-close>Fermer</button></div>
 </div></div>
 
 <div class="modal" id="newsModal"><div class="sheet">
@@ -290,6 +311,7 @@
 
 <script src="ruban.js"></script>
 <script src="tableau.js"></script>
+<script src="bureau.js"></script>
 <script>
 // Menu déroulant des actions de Jarvis (écran du PC, appli web) : choisir une action sans parler.
 // Chaque action est une phrase envoyée à Jarvis, exactement comme si tu la disais.
@@ -297,6 +319,7 @@
 const JARVIS_ACTIONS = [
   ["Chef d'orchestre", [
     ["Voir tous mes agents", "#chef"],
+    ["Caméra du bureau des agents", "#bureau"],
     ["État de mes agents", "état de mes agents"],
     ["Rapport des agents maintenant", "rapport des agents"],
   ]],
@@ -731,13 +754,27 @@ async function openChef() {
   try { renderAgents(body, await pcApi("/api/agents"), act); } catch (e) { body.textContent = "Le PC ne répond pas."; }
 }
 $("chefBtn").addEventListener("click", openChef);
+// Caméra du bureau des agents (sur le PC) : on filme la Salle des marchés tant que la fenêtre est ouverte
+let CAM = null;
+async function openCam() {
+  closeSheets();
+  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : le bureau des agents est sur le PC.", "jarvis"); return; }
+  openSheet("camModal");
+  if (CAM) CAM.detruire();
+  $("camListe").textContent = "";
+  CAM = BureauCam.creer($("camEcran"), { liste: $("camListe"), charger: () => pcApi("/api/bureau", null, 8000) });
+}
+new MutationObserver(() => { if (!$("camModal").classList.contains("open") && CAM) { CAM.detruire(); CAM = null; } })
+  .observe($("camModal"), { attributes: true, attributeFilter: ["class"] });
+$("camTab").addEventListener("click", openCam);
+$("camBtn").addEventListener("click", openCam);
 // Menu déroulant : une action choisie = la même phrase que si tu la disais
 fillActions($("actSel"));
 $("actForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const cmd = $("actSel").value; if (!cmd) return;
   $("actSel").selectedIndex = 0;
-  if (cmd === "#chef") openChef(); else handle(cmd);
+  if (cmd === "#chef") openChef(); else if (cmd === "#bureau") openCam(); else handle(cmd);
 });
 document.querySelectorAll(".modal").forEach(m => m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-close]")) m.classList.remove("open"); }));
 $("pcSleep").addEventListener("click", () => { closeSheets(); if (!PC) { add("Le PC est déjà éteint ou injoignable.", "jarvis"); return; } openSheet("sleepModal"); });

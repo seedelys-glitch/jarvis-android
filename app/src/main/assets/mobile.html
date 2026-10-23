@@ -123,6 +123,8 @@
   @media (max-width: 400px) { .camtab span { display: none; } .camtab { padding: 6px 8px; margin-left: 2px; } }
   .sheet.cam-sheet { max-height: 94vh; padding-top: 10px; }
   .cam-ecran { position: relative; aspect-ratio: 16 / 9; margin: 0 -18px; background: #000; }
+  .cam-ecran iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .sheet.cam-sheet .cam-ecran { aspect-ratio: auto; height: min(72vh, 640px); }
   @media (prefers-reduced-motion: reduce) { .camtab .rec { animation: none; } }
   /* chat avec le chef de desk */
   .camtab.desktab .rec { display: none; }
@@ -191,8 +193,8 @@
 
 <header class="bar">
   <span class="wordmark">J.A.R.V.I.S.</span>
-  <button class="camtab needpc" id="camTab" type="button" aria-label="Voir le bureau des agents IA"><i class="rec"></i><svg class="i"><use href="#i-cam"/></svg><span>Bureau</span></button>
-  <button class="camtab desktab needpc" id="deskTab" type="button" aria-label="Parler au chef de desk"><i class="rec"></i><svg class="i"><use href="#i-desk"/></svg><span>Desk</span></button>
+  <button class="camtab needpc" id="camTab" type="button" aria-label="Voir l'Université MGC en 3D"><i class="rec"></i><svg class="i"><use href="#i-cam"/></svg><span>Université</span></button>
+  <button class="camtab desktab needpc" id="deskTab" type="button" aria-label="Parler au chef de desk et au directeur"><i class="rec"></i><svg class="i"><use href="#i-desk"/></svg><span>Chefs</span></button>
   <button class="link" id="link" type="button" aria-label="Chercher le PC"><i class="led" id="dot"></i><span id="state">…</span></button>
   <button class="ib" id="voiceBtn" type="button" aria-label="Voix de Jarvis"><svg class="i"><use href="#i-sound"/></svg></button>
   <button class="ib" id="setBtn" type="button" aria-label="Réglages"><svg class="i"><use href="#i-gear"/></svg></button>
@@ -240,8 +242,8 @@
   <h2>Toutes les commandes</h2>
   <div class="group"><h3>Chef d'orchestre</h3><div class="tiles">
     <button type="button" class="tile needpc" id="chefBtn"><svg class="i"><use href="#i-desk"/></svg>Mes agents</button>
-    <button type="button" class="tile needpc" id="camBtn"><svg class="i"><use href="#i-cam"/></svg>Caméra du bureau</button>
-    <button type="button" class="tile needpc" id="deskBtn"><svg class="i"><use href="#i-desk"/></svg>Chef de desk</button>
+    <button type="button" class="tile needpc" id="camBtn"><svg class="i"><use href="#i-cam"/></svg>Caméra de l'université</button>
+    <button type="button" class="tile needpc" id="deskBtn"><svg class="i"><use href="#i-desk"/></svg>Chef de desk et directeur</button>
     <button type="button" class="tile needpc" data-cmd="état de mes agents" data-pc="1"><svg class="i"><use href="#i-check"/></svg>État des agents</button>
     <button type="button" class="tile needpc" data-cmd="rapport des agents" data-pc="1"><svg class="i"><use href="#i-book"/></svg>Rapport des agents</button>
   </div></div>
@@ -281,7 +283,7 @@
 
 <div class="modal" id="deskModal"><div class="sheet desk-sheet">
   <div class="handle"></div>
-  <h2>Chef de desk</h2>
+  <h2>Chefs d'agents</h2>
   <div class="desk-chat" id="deskChat"></div>
   <div class="row"><button type="button" data-close>Fermer</button></div>
 </div></div>
@@ -329,7 +331,6 @@
 
 <script src="ruban.js"></script>
 <script src="tableau.js"></script>
-<script src="bureau.js"></script>
 <script src="desk.js"></script>
 <script>
 // Menu déroulant des actions de Jarvis (écran du PC, appli web) : choisir une action sans parler.
@@ -338,8 +339,8 @@
 const JARVIS_ACTIONS = [
   ["Chef d'orchestre", [
     ["Voir tous mes agents", "#chef"],
-    ["Caméra du bureau des agents", "#bureau"],
-    ["Parler au chef de desk", "#desk"],
+    ["Caméra de l'université (3D)", "#bureau"],
+    ["Parler au directeur et au desk", "#desk"],
     ["État de mes agents", "état de mes agents"],
     ["Rapport des agents maintenant", "rapport des agents"],
   ]],
@@ -774,17 +775,23 @@ async function openChef() {
   try { renderAgents(body, await pcApi("/api/agents"), act); } catch (e) { body.textContent = "Le PC ne répond pas."; }
 }
 $("chefBtn").addEventListener("click", openChef);
-// Caméra du bureau des agents (sur le PC) : on filme la Salle des marchés tant que la fenêtre est ouverte
+// Caméra : l'Université MGC en 3D, sur le PC (Jarvis donne un accès de 12 h contre le code, jamais mis dans l'adresse)
 let CAM = null;
 async function openCam() {
   closeSheets();
-  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : le bureau des agents est sur le PC.", "jarvis"); return; }
+  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : l'université est sur le PC.", "jarvis"); return; }
   openSheet("camModal");
-  if (CAM) CAM.detruire();
-  $("camListe").textContent = "";
-  CAM = BureauCam.creer($("camEcran"), { liste: $("camListe"), charger: () => pcApi("/api/bureau", null, 8000) });
+  $("camEcran").textContent = ""; $("camListe").textContent = "Connexion à l'université…";
+  try {
+    const r = await pcApi("/api/universite/acces", {}, 8000);
+    CAM = PC + r.chemin;
+    const f = document.createElement("iframe"); f.src = CAM + "?camera=1"; f.title = "Université MGC en 3D";
+    $("camEcran").appendChild(f); $("camListe").textContent = "";
+  } catch (e) {
+    $("camListe").textContent = e.message === "code" ? "Code de l'appli incorrect (Réglages)." : "Le PC ne répond pas (ou Jarvis n'est pas à jour).";
+  }
 }
-new MutationObserver(() => { if (!$("camModal").classList.contains("open") && CAM) { CAM.detruire(); CAM = null; } })
+new MutationObserver(() => { if (!$("camModal").classList.contains("open") && CAM) { $("camEcran").textContent = ""; CAM = null; } })
   .observe($("camModal"), { attributes: true, attributeFilter: ["class"] });
 $("camTab").addEventListener("click", openCam);
 $("camBtn").addEventListener("click", openCam);

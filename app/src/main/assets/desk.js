@@ -1,4 +1,5 @@
-// Chat avec le chef de desk et ses 6 spécialistes (écran PC, page /desk, appli web, appli Android).
+// Chat avec les chefs d'agents : le chef de desk et ses 6 spécialistes, et le directeur de l'Université MGC
+// (écran PC, page /desk, appli web, appli Android).
 // DeskChat.creer(element, options) dessine : choix de l'agent, messages, missions, case de texte, micro.
 // options :
 //   api(chemin, corps?)   -> Promise<json>   (GET si pas de corps, POST sinon) — obligatoire
@@ -46,6 +47,7 @@
   @media (prefers-reduced-motion: reduce) { .dk-pts i, .dk-btn.micro.rec { animation: none; } }`;
   const IDEES = {
     chef: ["Pourquoi cette décision ?", "Refais le point sur le gold", "Je veux prendre un trade, challenge-moi", "Quelles missions ?"],
+    directeur: ["Où en est l'université ?", "Fais-moi la synthèse", "Lance une analyse complète", "Où en est la mission ?", "Des alertes ?"],
     autre: ["Qu'est-ce que tu vois ?", "Donne-moi tes niveaux clés", "Mission : surveille ta zone et préviens-moi"],
   };
   const SVG_ENVOI = '<svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg>';
@@ -102,7 +104,7 @@
     }
     function dessinerIdees() {
       const box = $(".dk-idees"); box.textContent = "";
-      for (const t of (agent === "chef" ? IDEES.chef : IDEES.autre)) {
+      for (const t of (IDEES[agent] || IDEES.autre)) {
         const b = document.createElement("button"); b.type = "button"; b.className = "dk-idee"; b.textContent = t;
         b.addEventListener("click", () => envoyer(t)); box.appendChild(b);
       }
@@ -117,7 +119,7 @@
       const msgs = etat.messages || [];
       if (!msgs.length) {
         const v = document.createElement("div"); v.className = "dk-vide";
-        v.textContent = "Parle au chef de desk ou à un spécialiste. Exemples : « Pourquoi pas de trade ? », « Je veux shorter le 0.786, t'en penses quoi ? », « Mission pour Fibo : surveille le 0.705 ». Tu peux aussi dire à Jarvis : « dis au chef de desk… ».";
+        v.textContent = "Parle au chef de desk, à un spécialiste ou au directeur de l'université. Exemples : « Pourquoi pas de trade ? », « Mission pour Fibo : surveille le 0.705 », et pour le directeur : « Où en est l'université ? », « Lance un replay ». Tu peux aussi dire à Jarvis : « dis au chef de desk… » ou « directeur, … ».";
         fil.appendChild(v);
       }
       let attente = false;

@@ -225,9 +225,101 @@
   .grand .facts { grid-template-columns: 1fr 1fr; }
   .grand .facts .fact:last-child { grid-column: 1 / -1; }
   .grand .actions button { font-size: 11.5px; }
+
+  /* ===== v3.8 : couleurs et vie ===== */
+  :root { --violet: #b08cff; --cyan: #4fd8d0; --bleu: #6aa8ff; --vert: #5cc58c; --rose: #ff6f91; }
+  .c-violet { --acc: var(--violet); } .c-or { --acc: var(--or); } .c-cyan { --acc: var(--cyan); }
+  .c-vert { --acc: var(--vert); } .c-bleu { --acc: var(--bleu); } .c-rouge { --acc: #ff7a6e; }
+  /* fond : trois lueurs qui dérivent lentement (rouge, or, violet) */
+  .aurore { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+  .aurore i { position: absolute; width: 70vmax; height: 70vmax; border-radius: 50%; filter: blur(50px); opacity: .5; will-change: transform; }
+  .aurore i:nth-child(1) { background: radial-gradient(circle, rgba(227, 36, 43, .9), transparent 62%); left: -30vmax; top: -38vmax; animation: derive1 26s ease-in-out infinite alternate; }
+  .aurore i:nth-child(2) { background: radial-gradient(circle, rgba(210, 167, 90, .55), transparent 62%); right: -36vmax; top: 10vh; animation: derive2 32s ease-in-out infinite alternate; }
+  .aurore i:nth-child(3) { background: radial-gradient(circle, rgba(130, 80, 255, .45), transparent 62%); left: -20vmax; bottom: -46vmax; animation: derive3 38s ease-in-out infinite alternate; }
+  @keyframes derive1 { to { transform: translate(18vmax, 10vmax) scale(1.15); } }
+  @keyframes derive2 { to { transform: translate(-16vmax, 22vmax) scale(.9); } }
+  @keyframes derive3 { to { transform: translate(22vmax, -14vmax) scale(1.2); } }
+  html { background: var(--nuit); }
+  body { background: radial-gradient(120% 46% at 50% -10%, rgba(120, 8, 12, .4), transparent 70%); }
+  /* réacteur : un anneau qui tourne autour du cœur */
+  .reactor { width: 22px; height: 22px; box-shadow: none;
+    background: radial-gradient(circle, #fff3ef 0 14%, var(--braise-vive) 26%, rgba(227, 36, 43, .25) 46%, transparent 50%); }
+  .reactor::before { content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 15%, var(--or-clair) 25%, transparent 35% 50%, var(--braise-vive) 60%, transparent 70% 85%, var(--or) 95%, transparent);
+    -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 60%); mask: radial-gradient(circle, transparent 0 58%, #000 60%);
+    animation: tourne 4s linear infinite; }
+  body.nopc .reactor::before { animation-duration: 14s; }
+  @keyframes tourne { to { transform: rotate(1turn); } }
+  .wordmark span { background: linear-gradient(90deg, var(--or-clair), var(--or) 45%, #ff9a7a 75%, var(--or-clair));
+    background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: reflet 7s linear infinite; }
+  @keyframes reflet { to { background-position: -200% 0; } }
+  /* carte du haut : bord dégradé or → rouge → violet */
+  .inst { position: relative; border: 0; background: linear-gradient(180deg, rgba(30, 12, 14, .72), rgba(14, 6, 8, .62)); backdrop-filter: blur(8px); }
+  .inst::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(135deg, rgba(240, 210, 150, .55), rgba(227, 36, 43, .35) 45%, rgba(176, 140, 255, .35) 80%, rgba(240, 210, 150, .2));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+  /* puces des équipes : une couleur par état, voyant qui pulse quand ça tourne */
+  .chip { background: rgba(255, 255, 255, .03); }
+  .chip:has(.led.on) { border-color: rgba(92, 197, 140, .4); background: linear-gradient(180deg, rgba(92, 197, 140, .12), rgba(92, 197, 140, .03)); }
+  .chip:has(.led.pause) { border-color: rgba(210, 167, 90, .45); background: linear-gradient(180deg, rgba(210, 167, 90, .12), rgba(210, 167, 90, .03)); }
+  .chips .led.on { background: var(--vert); box-shadow: 0 0 8px var(--vert); animation: pouls 2.4s ease-in-out infinite; }
+  @keyframes pouls { 50% { box-shadow: 0 0 0 4px rgba(92, 197, 140, .18), 0 0 10px var(--vert); } }
+  .chip { animation: entre .35s var(--doux) both; }
+  .chip:nth-child(2) { animation-delay: .04s; } .chip:nth-child(3) { animation-delay: .08s; } .chip:nth-child(4) { animation-delay: .12s; }
+  .chip:nth-child(5) { animation-delay: .16s; } .chip:nth-child(6) { animation-delay: .2s; } .chip:nth-child(n+7) { animation-delay: .24s; }
+  /* onglets du haut : reflet qui passe de temps en temps */
+  .camtab { position: relative; overflow: hidden; }
+  .camtab::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
+    background: linear-gradient(100deg, transparent, rgba(255, 240, 210, .16), transparent); animation: balaye 6s ease-in-out infinite; }
+  .camtab.desktab::after { animation-delay: 3s; }
+  .camtab.desktab { color: #d9c8ff; border-color: rgba(176, 140, 255, .35); background: linear-gradient(180deg, rgba(176, 140, 255, .12), rgba(176, 140, 255, .03)); }
+  @keyframes balaye { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  /* actions rapides : chaque icône dans sa pastille de couleur */
+  .actions { background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .35)); }
+  .actions button .i { width: 40px; height: 32px; padding: 5px 9px; border-radius: 12px; color: var(--acc, var(--or));
+    background: color-mix(in srgb, var(--acc, var(--or)) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc, var(--or)) 28%, transparent);
+    transition: transform var(--vite) var(--doux), background-color var(--vite); }
+  .actions button:active .i { transform: translateY(-2px) scale(1.06); background: color-mix(in srgb, var(--acc, var(--or)) 26%, transparent); }
+  /* tuiles de « Plus » : couleur du groupe */
+  .group h3 { display: flex; align-items: center; gap: 8px; color: var(--acc, var(--cendre)); }
+  .group h3::before { content: ""; width: 14px; height: 3px; border-radius: 2px; background: var(--acc, var(--cendre)); }
+  .group .tile .i { color: var(--acc, var(--or)); width: 34px; height: 34px; padding: 6px; border-radius: 11px;
+    background: color-mix(in srgb, var(--acc, var(--or)) 14%, transparent); }
+  .group .tile { background: linear-gradient(160deg, color-mix(in srgb, var(--acc, var(--or)) 9%, transparent), rgba(242, 231, 226, .02) 60%);
+    border-color: color-mix(in srgb, var(--acc, var(--or)) 20%, transparent); }
+  .group .tile:active { background: color-mix(in srgb, var(--acc, var(--or)) 18%, transparent); }
+  /* messages : Jarvis dans une carte, moi en braise */
+  .jarvis { padding: 10px 14px 10px 15px; border-left: 0; border-radius: 6px 18px 18px 18px; position: relative;
+    background: linear-gradient(135deg, rgba(36, 14, 16, .85), rgba(18, 8, 10, .75)); box-shadow: inset 0 0 0 1px rgba(210, 167, 90, .14); }
+  .jarvis::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--braise-vive), var(--or)); }
+  .jarvis.erreur::before { background: var(--or); }
+  .me { background: linear-gradient(135deg, #8f1a1f, #5a0e12); border-color: rgba(255, 106, 92, .35); color: #fff4f1; }
+  .typing { color: var(--cendre); }
+  .typing i { background: linear-gradient(180deg, var(--braise-vive), var(--or)); }
+  /* micro : anneau doré qui tourne doucement au repos */
+  #mic { isolation: isolate; }
+  #mic > .halo { position: absolute; inset: -4px; border-radius: 50%; z-index: -1;
+    background: conic-gradient(var(--or-clair), var(--braise-vive), var(--violet), var(--or-clair)); animation: tourne 6s linear infinite; opacity: .75; }
+  #mic { background: none; }
+  #mic > .halo::after { content: ""; position: absolute; inset: 3px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 35%, #ff4a3d, var(--braise) 70%); }
+  #mic.rec { background: none; }
+  #mic.rec > .halo { animation-duration: 1.2s; opacity: 1; }
+  #mic.rec > .halo::after { background: radial-gradient(circle at 50% 35%, #fff, #ffd9d4 70%); }
+  #send { background: linear-gradient(135deg, var(--or-clair), var(--or)); }
+  /* ouverture de l'appli : les blocs arrivent l'un après l'autre */
+  .demarre .bar, .demarre .tabs, .demarre .inst, .demarre footer { animation: arrive .5s var(--doux) both; }
+  .demarre .tabs { animation-delay: .06s; } .demarre .inst { animation-delay: .12s; } .demarre footer { animation-delay: .18s; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(14px); } }
+  /* feuilles : poignée dorée, bord lumineux */
+  .sheet { background: linear-gradient(180deg, #1a0a0c, var(--nuit-2) 120px); border-top: 1px solid rgba(240, 210, 150, .28); }
+  .handle { background: linear-gradient(90deg, var(--or), var(--braise-vive)); opacity: .7; }
+  @media (prefers-reduced-motion: reduce) { .aurore { display: none; } }
 </style>
 </head>
-<body class="nopc">
+<body class="nopc demarre">
+<div class="aurore" aria-hidden="true"><i></i><i></i><i></i></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
@@ -294,11 +386,11 @@
 
 <footer>
 <nav class="actions" aria-label="Actions rapides">
-  <button type="button" class="press needpc" data-cmd="je vais rentrer en position" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-in"/></svg>Entrée</button>
-  <button type="button" class="press needpc" data-cmd="je suis sorti de ma position" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg>Sortie</button>
-  <button type="button" class="press" id="newsBtn"><svg class="i" aria-hidden="true"><use href="#i-news"/></svg>Actus</button>
-  <button type="button" class="press needpc" data-cmd="où j'en suis aujourd'hui" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-day"/></svg>Ma journée</button>
-  <button type="button" class="press" id="moreBtn"><svg class="i" aria-hidden="true"><use href="#i-more"/></svg>Plus</button>
+  <button type="button" class="press c-vert needpc" data-cmd="je vais rentrer en position" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-in"/></svg>Entrée</button>
+  <button type="button" class="press c-rouge needpc" data-cmd="je suis sorti de ma position" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg>Sortie</button>
+  <button type="button" class="press c-cyan" id="newsBtn"><svg class="i" aria-hidden="true"><use href="#i-news"/></svg>Actus</button>
+  <button type="button" class="press c-or needpc" data-cmd="où j'en suis aujourd'hui" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-day"/></svg>Ma journée</button>
+  <button type="button" class="press c-violet" id="moreBtn"><svg class="i" aria-hidden="true"><use href="#i-more"/></svg>Plus</button>
 </nav>
 
 <form class="composer" id="form" autocomplete="off">
@@ -306,7 +398,7 @@
     <button type="button" id="photo" aria-label="Envoyer une image à analyser"><svg class="i" aria-hidden="true"><use href="#i-photo"/></svg></button>
     <input type="file" id="photoFile" accept="image/*" hidden>
     <button type="submit" id="send" aria-label="Envoyer"><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button></div>
-  <button type="button" id="mic" class="press" aria-label="Parler à Jarvis" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
+  <button type="button" id="mic" class="press" aria-label="Parler à Jarvis" aria-pressed="false"><i class="halo" aria-hidden="true"></i><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
 </form>
 </footer>
 
@@ -317,14 +409,14 @@
     <select id="actSel" aria-label="Choisir une action pour Jarvis"></select>
     <button type="submit" class="press">OK</button>
   </form>
-  <div class="group"><h3>Chef d'orchestre</h3><div class="press tiles">
+  <div class="group c-violet"><h3>Chef d'orchestre</h3><div class="tiles">
     <button type="button" class="press tile needpc" id="chefBtn"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Mes agents</button>
     <button type="button" class="press tile needpc" id="camBtn"><svg class="i" aria-hidden="true"><use href="#i-cam"/></svg>Caméra de l'université</button>
     <button type="button" class="press tile needpc" id="deskBtn"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Chef de desk et directeur</button>
     <button type="button" class="press tile needpc" data-cmd="état de mes agents" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>État des agents</button>
     <button type="button" class="press tile needpc" data-cmd="rapport des agents" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Rapport des agents</button>
   </div></div>
-  <div class="group"><h3>Trading</h3><div class="press tiles">
+  <div class="group c-or"><h3>Trading</h3><div class="tiles">
     <button type="button" class="press tile" id="dashBtn"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Tableau de bord</button>
     <button type="button" class="press tile needpc" data-cmd="fais-moi le bilan de la semaine" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Bilan de la semaine</button>
     <button type="button" class="press tile needpc" data-cmd="mes alertes" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg>Mes alertes</button>
@@ -333,7 +425,7 @@
     <button type="button" class="press tile needpc" data-cmd="lance le desk sur le gold" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Salle des marchés</button>
     <button type="button" class="press tile needpc" data-cmd="où en est le desk" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Où en est la Salle</button>
   </div></div>
-  <div class="group"><h3>Assistant</h3><div class="press tiles">
+  <div class="group c-cyan"><h3>Assistant</h3><div class="tiles">
     <button type="button" class="press tile needpc" data-cmd="mes rappels" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg>Mes rappels</button>
     <button type="button" class="press tile needpc" data-cmd="ma liste" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg>Ma liste</button>
     <button type="button" class="press tile needpc" data-cmd="mes notes" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Mes notes</button>
@@ -341,18 +433,18 @@
     <button type="button" class="press tile needpc" data-cmd="mode concentration" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg>Mode concentration</button>
     <button type="button" class="press tile needpc" data-cmd="fin de la concentration" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg>Fin de la concentration</button>
   </div></div>
-  <div class="group"><h3>Marché</h3><div class="press tiles">
+  <div class="group c-vert"><h3>Marché</h3><div class="tiles">
     <button type="button" class="press tile" data-cmd="prix du gold"><svg class="i" aria-hidden="true"><use href="#i-gold"/></svg>Prix du gold</button>
     <button type="button" class="press tile" data-cmd="les annonces du jour"><svg class="i" aria-hidden="true"><use href="#i-cal"/></svg>Annonces du jour</button>
     <button type="button" class="press tile" data-cmd="c'est quand la prière"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg>Heures de prière</button>
   </div></div>
-  <div class="group"><h3>Bureau</h3><div class="press tiles">
+  <div class="group c-bleu"><h3>Bureau</h3><div class="tiles">
     <button type="button" class="press tile needpc" data-cmd="réveille-toi" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg>Réveiller le bureau</button>
     <button type="button" class="press tile needpc" data-cmd="mets-toi en veille" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg>Bureau en veille</button>
     <button type="button" class="press tile needpc" data-cmd="musique suivante" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-next"/></svg>Musique suivante</button>
     <button type="button" class="press tile needpc" data-cmd="pause" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-pause"/></svg>Couper la musique</button>
   </div></div>
-  <div class="group"><h3>PC</h3><div class="press tiles">
+  <div class="group c-rouge"><h3>PC</h3><div class="tiles">
     <button type="button" class="press tile" id="pcWake"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Rallumer le PC</button>
     <button type="button" class="press tile rouge" id="pcSleep"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Je pars / veille du PC</button>
   </div></div>
@@ -1087,6 +1179,7 @@ $("newsBtn").addEventListener("click", async () => {
   }).join("") : "Aucune actu pour l'instant.";
 });
 
+setTimeout(() => document.body.classList.remove("demarre"), 900);
 // démarrage : le prix s'affiche tout de suite, pendant qu'on cherche le PC
 try { if (A.echelleTexte && A.echelleTexte() > 1.15) document.body.classList.add("grand"); } catch (e) {}
 goldPrice().then(g => { if (g) montrerGold(g); }).catch(() => {});

@@ -7,8 +7,8 @@ android {
         applicationId "fr.jabran.jarvis"
         minSdk 26
         targetSdk 34
-        versionCode 20
-        versionName "3.7"
+        versionCode 21
+        versionName "3.8"
     }
     signingConfigs {
         // Clé fixe (secret GitHub JARVIS_CLE, déposée par la compilation) : chaque nouvelle

@@ -522,6 +522,16 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** Adresse Tailscale du PC donnée par Jarvis quand on est à la maison : retenue toute seule
+         *  pour joindre le PC depuis la 4G/5G (plus besoin de la taper dans les réglages). */
+        @JavascriptInterface
+        public void saveTailscale(String ip) {
+            if (ip != null && ip.matches("100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]{1,3}\\.[0-9]{1,3}")
+                    && !ip.equals(prefs.getString("tailscale", ""))) {
+                prefs.edit().putString("tailscale", ip).apply();
+            }
+        }
+
         @JavascriptInterface
         public String wake() {
             String mac = prefs.getString("mac", "");

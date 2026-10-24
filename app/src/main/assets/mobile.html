@@ -730,6 +730,8 @@ async function refresh() {
       const s = await pcApi("/api/status");
       DAY = s.day || null;
       if (s.mac) A.saveWol(s.mac, s.broadcast || "");
+      const ts = s.day && s.day.diag && s.day.diag.Tailscale;  // adresse Tailscale du PC : retenue pour la 4G
+      if (ts && ts.ok && A.saveTailscale) A.saveTailscale(String(ts.detail || ""));
       $("state").textContent = s.asleep ? "Bureau en veille" : (PC.includes("100.") ? "PC à distance" : "PC à la maison");
     } catch (e) {
       DAY = null;

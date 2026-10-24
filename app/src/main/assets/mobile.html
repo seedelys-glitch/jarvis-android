@@ -47,14 +47,25 @@
   .ib { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: rgba(242, 231, 226, .8); }
   .ib.off { color: var(--cendre); }
 
-  /* instrument : prix, journée, ruban */
+  /* en haut : mes équipes (tout ce que Jarvis peut joindre), le gold en petit à droite, puis journée et ruban */
   .inst { padding: 6px 18px 12px; border-bottom: 1px solid var(--trait); }
-  .price-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
-  .asset { font-size: 13px; color: var(--cendre); margin-bottom: 2px; }
-  .price { font-family: "Barlow Condensed", sans-serif; font-weight: 300; font-size: 50px; line-height: .95;
-    color: var(--or-clair); text-shadow: 0 0 22px rgba(214, 170, 85, .3); }
-  .price small { font-size: .45em; color: var(--or); margin-left: 3px; }
-  .chg { font-size: 15px; font-weight: 500; text-align: right; padding-bottom: 6px; white-space: nowrap; }
+  .price-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .asset { font-size: 13px; color: var(--cendre); margin-bottom: 4px; }
+  .teams { min-width: 0; flex: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; font: inherit;
+    font-size: 12.5px; color: var(--os); background: rgba(242, 231, 226, .04); border: 1px solid rgba(210, 167, 90, .22);
+    cursor: pointer; white-space: nowrap; }
+  .chip:active { background: rgba(210, 167, 90, .14); }
+  .chip.muet { color: var(--cendre); cursor: default; }
+  .led.pause { background: var(--or); box-shadow: 0 0 6px rgba(214, 170, 85, .6); }
+  .led.bad { background: transparent; box-shadow: inset 0 0 0 1.5px var(--cendre); }
+  .team-detail { margin-top: 6px; font-size: 12.5px; color: rgba(242, 231, 226, .66); min-height: 1em; }
+  .gold-mini { text-align: right; flex: none; }
+  .price { font-family: "Barlow Condensed", sans-serif; font-weight: 300; font-size: 24px; line-height: 1;
+    color: var(--or-clair); }
+  .price small { font-size: .55em; color: var(--or); margin-left: 2px; }
+  .chg { font-size: 12.5px; font-weight: 500; text-align: right; margin-top: 2px; white-space: nowrap; }
   .up { color: var(--gain); } .down { color: var(--braise-vive); }
   .facts { display: grid; grid-template-columns: .85fr 1.25fr 1fr; gap: 12px; margin: 12px 0 10px; }
   .fact { min-width: 0; }
@@ -202,8 +213,10 @@
 
 <section class="inst">
   <div class="price-row">
-    <div><div class="asset">Micro gold</div><div class="price" id="gold">—</div></div>
-    <div class="chg" id="goldChg"></div>
+    <div class="teams"><div class="asset">Mes équipes</div>
+      <div class="chips" id="teams"><span class="chip muet"><i class="led bad"></i>avec le PC</span></div>
+      <div class="team-detail" id="teamDetail"></div></div>
+    <div class="gold-mini"><div class="asset">Gold</div><div class="price" id="gold">—</div><div class="chg" id="goldChg"></div></div>
   </div>
   <dl class="facts">
     <div class="fact"><dt>Ma journée</dt><dd id="pnl">—</dd><span class="sub" id="pnlSub"></span></div>
@@ -938,7 +951,31 @@ $("newsBtn").addEventListener("click", async () => {
   setInterval(refresh, 30000);
   setInterval(detectPc, 60000);
   setInterval(showFacts, 20000);
+  refreshEquipes(); setInterval(refreshEquipes, 20000);
 })();
+
+// Mes équipes (avec le PC) : un appui = le détail + la phrase pour lui parler, prête dans la case
+async function refreshEquipes() {
+  const box = $("teams");
+  if (!PC) { box.innerHTML = '<span class="chip muet"><i class="led bad"></i>avec le PC</span>'; return; }
+  try {
+    const lignes = (await pcApi("/api/equipes", null, 15000)).equipes || [];
+    if (!lignes.length) return;
+    box.textContent = "";
+    for (const q of lignes) {
+      const b = document.createElement("button"), led = document.createElement("i");
+      b.type = "button"; b.className = "chip";
+      led.className = "led " + (q.etat === "on" ? "on" : q.etat === "pause" ? "pause" : "bad");
+      b.append(led, q.nom);
+      b.addEventListener("click", () => {
+        $("teamDetail").textContent = q.nom + " : " + (q.detail || "") + (q.exemple ? " · dis « " + q.exemple + " »" : "");
+        const debut = (q.exemple || "").split(/[,…]/)[0].trim();
+        if (debut && (q.exemple || "").includes(",")) { $("input").value = debut + ", "; $("input").focus(); }
+      });
+      box.append(b);
+    }
+  } catch (e) {}
+}
 </script>
 </body>
 </html>

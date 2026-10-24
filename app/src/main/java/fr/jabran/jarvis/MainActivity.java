@@ -15,6 +15,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.text.InputType;
+import android.view.HapticFeedbackConstants;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -89,6 +90,8 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        // taille du texte choisie dans les réglages du téléphone (accessibilité), jusqu'à 160 %
+        s.setTextZoom(Math.round(Math.min(1.6f, getResources().getConfiguration().fontScale) * 100));
         web.addJavascriptInterface(new Bridge(), "JarvisAndroid");
         web.setWebViewClient(new WebViewClient());
         // Bouton photo de la page : ouvre la galerie (captures TradingView, photos).
@@ -149,7 +152,22 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        moveTaskToBack(true);
+        // Retour : ferme d'abord la feuille ouverte dans la page, sinon l'appli passe derrière
+        web.evaluateJavascript("window.__retour ? window.__retour() : false", r -> {
+            if (!"true".equals(r)) moveTaskToBack(true);
+        });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (web != null) web.evaluateJavascript("window.__app && window.__app(false)", null);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (web != null) web.evaluateJavascript("window.__app && window.__app(true)", null);
     }
 
     // ------------------------------------------------------------------ réglages
@@ -403,6 +421,24 @@ public class MainActivity extends Activity {
             String ts = prefs.getString("tailscale", "");
             if (reachable(ts, PC_PORT, 2500)) return "http://" + ts + ":" + PC_PORT;
             return "";
+        }
+
+        /** Même recherche que findPc, mais sans figer la page : la réponse revient dans window.__native. */
+        @JavascriptInterface
+        public void findPcAsync(String id) {
+            new Thread(() -> reply(id, "200", findPc())).start();
+        }
+
+        /** Petite vibration au toucher (micro, boutons), si le téléphone l'autorise. */
+        @JavascriptInterface
+        public void haptic() {
+            runOnUiThread(() -> web.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP));
+        }
+
+        /** Taille du texte réglée sur le téléphone (1 = normale). */
+        @JavascriptInterface
+        public float echelleTexte() {
+            return getResources().getConfiguration().fontScale;
         }
 
         @JavascriptInterface

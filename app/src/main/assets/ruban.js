@@ -30,9 +30,9 @@
     color: var(--cendre, #8c7774); white-space: nowrap; }
   .rb-pr-t.next { color: var(--or-clair, #f0d296); }
   .rb-h { position: absolute; top: 4px; font-size: var(--rb-font, 11px); color: rgba(140, 119, 116, .7); }
-  .rb-closed { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: var(--rb-font, 11px); color: var(--cendre, #8c7774);
-    background: repeating-linear-gradient(135deg, rgba(242,231,226,.04) 0 6px, transparent 6px 12px); }
+  .rb-closed { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center;
+    font-size: var(--rb-font, 11px); color: rgba(242, 231, 226, .72); white-space: nowrap;
+    background: repeating-linear-gradient(135deg, rgba(242,231,226,.05) 0 6px, transparent 6px 12px), #0d0607; }
   `;
   let styled = false;
   const pct = (min) => (Math.max(0, Math.min(1440, min)) / 1440 * 100) + "%";
@@ -65,7 +65,7 @@
         seg.style.left = pct(a); seg.style.width = pct(b - a);
       }
       const solo = { "Asie": [60, 540], "Londres": [600, ny], "New York": [1050, 1320] };
-      for (const [name] of sessions) {
+      for (const [name] of closed ? [] : sessions) {  // marché fermé : le bandeau prend la place des noms
         const [a, b] = solo[name]; if (b - a < (compact ? 150 : 90)) continue;
         const on = !closed && sessions.some(s => s[0] === name && nowMin >= s[1] && nowMin < s[2]);
         const t = el("rb-name" + (on ? " on" : ""), lane, compact && name === "New York" ? "NY" : name);

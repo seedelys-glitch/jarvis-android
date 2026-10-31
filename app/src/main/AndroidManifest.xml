@@ -25,5 +25,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Alertes TradingView du téléphone lues à voix haute (AlertesTradingView.java) -->
+        <service
+            android:name=".AlertesTradingView"
+            android:label="Jarvis : alertes TradingView à voix haute"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

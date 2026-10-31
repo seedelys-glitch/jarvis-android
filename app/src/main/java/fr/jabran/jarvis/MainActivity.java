@@ -258,6 +258,25 @@ public class MainActivity extends Activity {
         for (int i = 0; i < IA_IDS.length; i++) if (IA_IDS[i].equals(actuel)) pref.setSelection(i + 1);
         box.addView(pref);
 
+        // Alertes TradingView du téléphone lues à voix haute (AlertesTradingView.java)
+        android.widget.CheckBox alertes = new android.widget.CheckBox(this);
+        boolean acces = accesNotifications();
+        alertes.setText("Lire à voix haute les alertes TradingView du téléphone"
+                + (acces ? "" : "\n(il faut d'abord autoriser Jarvis : bouton ci-dessous)"));
+        alertes.setChecked(prefs.getBoolean(AlertesTradingView.PREF, true));
+        alertes.setPadding(0, 18, 0, 0);
+        box.addView(alertes);
+        if (!acces) {
+            android.widget.Button autoriser = new android.widget.Button(this);
+            autoriser.setText("Autoriser Jarvis à lire les notifications");
+            autoriser.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+                } catch (Exception ignored) { }
+            });
+            box.addView(autoriser);
+        }
+
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);
         new AlertDialog.Builder(this)
@@ -275,11 +294,19 @@ public class MainActivity extends Activity {
                     }
                     int sel = pref.getSelectedItemPosition();
                     ed.putString("ia_pref", sel <= 0 ? "auto" : IA_IDS[sel - 1]);
+                    ed.putBoolean(AlertesTradingView.PREF, alertes.isChecked());
                     ed.apply();
                     web.reload();
                 })
                 .setNegativeButton("Annuler", null)
                 .show();
+    }
+
+    /** Jarvis a-t-il le droit de voir les notifications (pour les alertes TradingView) ? */
+    private boolean accesNotifications() {
+        String liste = android.provider.Settings.Secure.getString(getContentResolver(),
+                "enabled_notification_listeners");
+        return liste != null && liste.contains(getPackageName());
     }
 
     private static String clean(String v) {

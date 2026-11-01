@@ -58,6 +58,12 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/mains_libres" />
         </service>
+        <!-- Photo prise avec l'appareil photo, en pleine taille (PhotoProvider.java) -->
+        <provider
+            android:name=".PhotoProvider"
+            android:authorities="fr.jabran.jarvis.photo"
+            android:exported="false"
+            android:grantUriPermissions="true" />
         <!-- Alertes TradingView du téléphone lues à voix haute (AlertesTradingView.java) -->
         <service
             android:name=".AlertesTradingView"

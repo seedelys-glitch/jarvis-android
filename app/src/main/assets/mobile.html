@@ -421,6 +421,7 @@
     <button type="button" class="press tile needpc" data-cmd="fais-moi le bilan de la semaine" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Bilan de la semaine</button>
     <button type="button" class="press tile needpc" data-cmd="mes alertes" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg>Mes alertes</button>
     <button type="button" class="press tile needpc" data-cmd="vérifie mon setup" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Vérifier mon setup</button>
+    <button type="button" class="press tile" id="regarde"><svg class="i" aria-hidden="true"><use href="#i-photo"/></svg>Qu'est-ce que je regarde ?</button>
     <button type="button" class="press tile needpc" data-cmd="envoie-moi mes graphiques" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-photo"/></svg>Graphiques sur Telegram</button>
     <button type="button" class="press tile needpc" data-cmd="lance le desk sur le gold" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Salle des marchés</button>
     <button type="button" class="press tile needpc" data-cmd="où en est le desk" data-pc="1"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Où en est la Salle</button>
@@ -1132,14 +1133,21 @@ function visionPhone(dataUrl, question) {  // PC éteint : l'IA du téléphone (
     A.vision(id, dataUrl.split(",", 2)[1] || "", question || "Analyse cette image.", system, 900);
   });
 }
-$("photo").addEventListener("click", () => $("photoFile").click());
+$("photo").addEventListener("click", () => { $("photoFile").removeAttribute("capture"); $("photoFile").click(); });
+// « Qu'est-ce que je regarde ? » (idée GitHub 39) : l'appareil photo s'ouvre, Jarvis décrit et lit le texte
+let regardeQ = "";
+$("regarde").addEventListener("click", () => {
+  regardeQ = "Qu'est-ce que je regarde ? Décris simplement ce que tu vois et lis-moi le texte important " +
+    "(panneau, ticket, facture, écran). Ce n'est pas un graphique de trading, sauf si c'en est un.";
+  $("photoFile").setAttribute("capture", "environment"); $("photoFile").click();
+});
 $("photoFile").addEventListener("change", async (e) => {
-  const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+  const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) { regardeQ = ""; return; }
   let url;
   try { url = await shrink(f); } catch (err) { add("Je n'arrive pas à ouvrir cette image.", "jarvis"); return; }
   const mine = add("", "me"); const im = document.createElement("img"); im.src = url; im.alt = "Image envoyée"; mine.appendChild(im);
-  const q = $("input").value.trim();
-  if (q) { const t = document.createElement("div"); t.textContent = q; mine.appendChild(t); $("input").value = ""; $("form").classList.remove("typed"); }
+  const q = $("input").value.trim() || regardeQ; regardeQ = "";
+  if (q && $("input").value.trim()) { const t = document.createElement("div"); t.textContent = q; mine.appendChild(t); $("input").value = ""; $("form").classList.remove("typed"); }
   im.onload = () => { $("chat").scrollTop = $("chat").scrollHeight; };
   const wait = add("", "jarvis typing");
   let replies = [];

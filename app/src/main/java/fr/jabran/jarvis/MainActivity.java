@@ -119,6 +119,12 @@ public class MainActivity extends Activity {
         // Bouton photo de la page : ouvre la galerie (captures TradingView, photos).
         web.setWebChromeClient(new WebChromeClient() {
             @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
+                android.util.Log.i("JarvisPage", m.message());
+                return true;
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                                              FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
@@ -228,6 +234,7 @@ public class MainActivity extends Activity {
     void commandeVocale(String cmd) {
         runOnUiThread(() -> {
             if (!pageChargee) { voixEnAttente = cmd; return; }
+            android.util.Log.i("JarvisReveil", "commande vocale vers la page : " + cmd);
             synchronized (MainActivity.this) { tourVocal = true; tourAnnonce = false; }
             web.evaluateJavascript("window.__voix ? window.__voix(" + JSONObject.quote(cmd) + ") : JarvisAndroid.tourFini()", null);
         });
@@ -412,6 +419,15 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) { }
             });
             box.addView(ouvrir);
+        }
+
+        if (!AppsTelephone.mainsLibresActif(this)) {
+            android.widget.Button mains = new android.widget.Button(this);
+            mains.setText("Activer « Jarvis mains libres » (ouvrir / fermer les applis à la voix)");
+            mains.setOnClickListener(v -> {
+                try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); } catch (Exception ignored) { }
+            });
+            box.addView(mains);
         }
 
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
@@ -686,6 +702,7 @@ public class MainActivity extends Activity {
         /** La réponse à une commande vocale est envoyée à la voix : l'écoute reprend quand elle est dite. */
         @JavascriptInterface
         public void tourFini() {
+            android.util.Log.i("JarvisReveil", "réponse envoyée à la voix (" + parolesEnCours + " phrase(s) en cours)");
             synchronized (MainActivity.this) {
                 tourAnnonce = true;
                 if (parolesEnCours == 0) {
@@ -697,6 +714,17 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean reveilActif() { return EcouteJarvis.enMarche(); }
+
+        /** « ouvre Waze », « ferme Snapchat »… : fait sur le téléphone ; "" = pas pour le téléphone. */
+        @JavascriptInterface
+        public String appsTel(String phrase) {
+            try {
+                String r = AppsTelephone.essayer(MainActivity.this, phrase);
+                return r == null ? "" : r;
+            } catch (Exception e) {
+                return "";
+            }
+        }
 
         /** État de « Eh Jarvis » et dernière phrase entendue (petite ligne de la page). */
         @JavascriptInterface

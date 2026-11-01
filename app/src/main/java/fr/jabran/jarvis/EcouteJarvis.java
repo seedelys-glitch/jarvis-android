@@ -394,7 +394,18 @@ public class EcouteJarvis extends Service {
                 avant.clear();
                 ouvert = false;
             }
-            int n = rec.read(pcm, 0, BLOC);
+            int n;
+            if (essai == null) essai = lireEssai();
+            if (essai != null) {
+                // Essai automatique : un enregistrement remplace le micro (voir tests/essai-emulateur.sh)
+                n = Math.min(BLOC, essai.length - essaiPos);
+                System.arraycopy(essai, essaiPos, pcm, 0, n);
+                essaiPos += n;
+                rec.read(new short[BLOC], 0, BLOC);   // garde le rythme du vrai micro
+                if (essaiPos >= essai.length) { essai = null; essaiPos = 0; Log.i(TAG, "essai : fin de l'enregistrement"); }
+            } else {
+                n = rec.read(pcm, 0, BLOC);
+            }
             if (n <= 0) { dors(50); continue; }
             float[] x = new float[n];
             double e = 0;
@@ -499,7 +510,29 @@ public class EcouteJarvis extends Service {
         if (rec != null) arreteMicro(rec);
     }
 
+    private short[] essai = null;
+    private int essaiPos = 0;
+
+    /** Fichier d'essai déposé dans l'appli (seulement par un essai automatique, jamais par une autre appli). */
+    private short[] lireEssai() {
+        File f = new File(getFilesDir(), "essai-audio.wav");
+        if (!f.isFile()) return null;
+        try {
+            byte[] b = java.nio.file.Files.readAllBytes(f.toPath());
+            f.delete();
+            int n = (b.length - 44) / 2;
+            short[] x = new short[n];
+            java.nio.ByteBuffer.wrap(b, 44, n * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(x);
+            Log.i(TAG, "essai : enregistrement de " + (n / RATE) + " s");
+            return x;
+        } catch (Exception e) {
+            f.delete();
+            return null;
+        }
+    }
+
     private static void noteEntendu(String t) {
+        if (t != null && !t.trim().isEmpty() && !t.trim().equals(dernierEntendu)) Log.i(TAG, "entendu : " + t.trim());
         if (t != null && !t.trim().isEmpty()) dernierEntendu = t.trim();
     }
 

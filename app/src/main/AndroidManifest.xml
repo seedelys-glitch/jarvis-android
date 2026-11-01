@@ -15,6 +15,14 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- « ouvre Waze », « ferme Snapchat » : voir les applis du téléphone et arrêter celles qu'on ferme -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:label="Jarvis"
@@ -39,6 +47,17 @@
             android:name=".EcouteJarvis"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+        <!-- « Jarvis mains libres » : accueil, retour, appli devant (pour ouvrir / fermer à la voix) -->
+        <service
+            android:name=".MainsLibres"
+            android:label="Jarvis mains libres"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/mains_libres" />
+        </service>
         <!-- Alertes TradingView du téléphone lues à voix haute (AlertesTradingView.java) -->
         <service
             android:name=".AlertesTradingView"

@@ -870,6 +870,12 @@ async function localCommand(text) {
                       : "Rien d'important pour le gold dans les derniers posts de Trump.";
   }
   if (has("rallume", "allume le pc", "demarre le pc")) { return A.wake(); }
+  if (short && /\b(quelle heure|l'heure|il est quelle heure)\b/.test(c)) {
+    const d = new Date(); return "Il est " + d.getHours() + " h " + String(d.getMinutes()).padStart(2, "0") + ".";
+  }
+  if (short && /\b(quel jour|on est le combien|la date)\b/.test(c)) {
+    return "On est le " + new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) + ".";
+  }
   return await chatClaude(text);
 }
 
@@ -879,7 +885,9 @@ async function handle(text, voix) {
   const wait = add("", "jarvis typing");
   let replies = [];
   try {
-    if (PC || await detectPc()) {
+    const tel = A.appsTel ? A.appsTel(text) : "";   // « ouvre Waze », « ferme Snapchat » : sur le téléphone
+    if (tel) replies = [tel];
+    else if (PC || await detectPc()) {
       try { const r = await pcApi("/api/cmd", { text }); replies = (r.replies || []).filter(Boolean); if (!replies.length) replies = [r.done ? "C'est fait." : "Je n'ai pas compris."]; }
       catch (e) {
         if (e.message === "code") replies = ["Code incorrect : mets le code à 6 chiffres dans les réglages (devant le PC, dis « Jarvis, code de l'appli »)."];
@@ -891,14 +899,14 @@ async function handle(text, voix) {
     }
   } catch (e) { replies = ["Petit souci : " + e.message]; }
   wait.remove();
-  for (const r of replies) { add(r, "jarvis"); if (voix) A.speak(r); else say(r); }
+  for (const r of replies) { add(r, "jarvis"); if (voix) { console.log("JarvisRepond: " + r); A.speak(r); } else say(r); }
   refresh(true);
 }
 
 // « Eh Jarvis » : la commande entendue par le téléphone (mains libres). La réponse est TOUJOURS dite
 // à voix haute (même son coupé), puis Jarvis écoute encore 12 s pour la suite.
 window.__voix = async (text) => {
-  vibre();
+  vibre(); console.log("JarvisVoix: " + text);
   try { await handle(text, true); } catch (e) { A.speak("Petit souci : " + e.message); }
   try { A.tourFini(); } catch (e) {}
 };

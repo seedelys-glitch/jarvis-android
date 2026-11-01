@@ -94,18 +94,30 @@ public class MainActivity extends Activity {
         s.setTextZoom(Math.round(Math.min(1.6f, getResources().getConfiguration().fontScale) * 100));
         web.addJavascriptInterface(new Bridge(), "JarvisAndroid");
         web.setWebViewClient(new WebViewClient());
-        // Bouton photo de la page : ouvre la galerie (captures TradingView, photos).
+        // Bouton photo de la page : galerie (captures TradingView, photos) ou appareil photo (idée GitHub 39).
+        // Le bouton « Qu'est-ce que je regarde ? » demande l'appareil photo directement (capture).
         web.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                                              FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
-                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("image/*");
+                Intent camera = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+                camera.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, PhotoProvider.URI);
+                camera.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                PhotoProvider.fichier(MainActivity.this).delete();
+                Intent choix;
+                if (params != null && params.isCaptureEnabled()) {
+                    choix = camera;
+                } else {
+                    Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    i.setType("image/*");
+                    choix = Intent.createChooser(i, "Image à analyser");
+                    choix.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{camera});
+                }
                 try {
-                    startActivityForResult(Intent.createChooser(i, "Image à analyser"), PICK_IMAGE);
+                    startActivityForResult(choix, PICK_IMAGE);
                 } catch (Exception e) {
                     fileCallback = null;
                     return false;
@@ -135,7 +147,12 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == PICK_IMAGE) {
             if (fileCallback != null) {
-                fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                Uri[] choisi = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                java.io.File photo = PhotoProvider.fichier(this);
+                if ((choisi == null || choisi.length == 0) && resultCode == RESULT_OK && photo.length() > 0) {
+                    choisi = new Uri[]{PhotoProvider.URI};   // photo prise avec l'appareil photo
+                }
+                fileCallback.onReceiveValue(choisi);
                 fileCallback = null;
             }
             return;

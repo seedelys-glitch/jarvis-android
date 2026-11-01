@@ -264,6 +264,7 @@ public class EcouteJarvis extends Service {
         OnlineModelConfig m = new OnlineModelConfig();
         m.setTransducer(t);
         m.setTokens(new File(d, "fr/tokens.txt").getPath());
+        m.setModelingUnit("cjkchar");   // obligatoire avec les mots favoris (sinon plantage net, essai du 01/11)
         m.setNumThreads(1);
         m.setProvider("cpu");
         OnlineRecognizerConfig c = new OnlineRecognizerConfig();

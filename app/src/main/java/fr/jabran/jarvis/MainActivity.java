@@ -698,6 +698,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean reveilActif() { return EcouteJarvis.enMarche(); }
 
+        /** État de « Eh Jarvis » et dernière phrase entendue (petite ligne de la page). */
+        @JavascriptInterface
+        public String ecouteEtat() {
+            if (!EcouteJarvis.active(MainActivity.this)) return "{}";
+            if (!EcouteJarvis.enMarche()) {
+                return "{\"actif\":true,\"etat\":\"arrêtée (rouvre l'appli ou vérifie le droit au micro)\",\"entendu\":\"\"}";
+            }
+            return EcouteJarvis.etatJson();
+        }
+
         @JavascriptInterface
         public void stopSpeak() {
             if (ttsReady) { synchronized (MainActivity.this) { parolesEnCours = 0; } tts.stop(); }

@@ -114,6 +114,24 @@ public class EcouteJarvis extends Service {
 
     static boolean enMarche() { return vivant != null; }
 
+    // Ce que l'écoute fait et entend : montré dans l'appli (petite ligne au-dessus de la case de texte)
+    static volatile String etatAffiche = "je démarre…";
+    static volatile String dernierEntendu = "";
+    static volatile long reveilA = 0;
+
+    static String etatJson() {
+        try {
+            return new org.json.JSONObject()
+                    .put("actif", vivant != null)
+                    .put("etat", etatAffiche)
+                    .put("entendu", dernierEntendu)
+                    .put("reveil", System.currentTimeMillis() - reveilA < 4000)
+                    .toString();
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
     /** Le bouton micro de l'appli prend le micro : on le lui laisse. */
     static void microAppli(boolean oui) { microAppli = oui; }
 
@@ -211,6 +229,7 @@ public class EcouteJarvis extends Service {
     }
 
     private void majNotif(String texte) {
+        etatAffiche = texte.startsWith("Dis ") ? "j'écoute" : texte;
         if (texte.equals(texteNotif)) return;
         try { getSystemService(NotificationManager.class).notify(NOTIF, notification(texte)); } catch (Exception ignored) { }
     }
@@ -409,14 +428,18 @@ public class EcouteJarvis extends Service {
                 }
                 if (entendu) {
                     Log.i(TAG, "« Jarvis » entendu : " + asr.getResult(sFr).getText());
+                    noteEntendu(asr.getResult(sFr).getText());
+                    reveilA = System.currentTimeMillis();
+                    etatAffiche = "je t'écoute, dis ta commande";
                     bip(true);
                     etat = Etat.COMMANDE;
                     premierePhrase = true;
                     depuis = now;
                     continue;
                 }
-                if (asr.isEndpoint(sFr)) asr.reset(sFr);
+                if (asr.isEndpoint(sFr)) { noteEntendu(asr.getResult(sFr).getText()); asr.reset(sFr); }
                 if (now - dernierSon > 2000) {   // plus personne ne parle : on se rendort
+                    noteEntendu(asr.getResult(sFr).getText());
                     ouvert = false;
                     asr.reset(sFr);
                     if (sEn != null) { sEn.release(); sEn = kws.createStream(""); }
@@ -448,6 +471,8 @@ public class EcouteJarvis extends Service {
                         continue;
                     }
                     Log.i(TAG, "commande : " + cmd);
+                    noteEntendu(brut);
+                    etatAffiche = "commande envoyée";
                     envoyer(cmd);
                     etat = Etat.ATTENTE;
                     depuis = System.currentTimeMillis();
@@ -460,12 +485,17 @@ public class EcouteJarvis extends Service {
             if (now - depuis > delai && brut.trim().isEmpty() && now - dernierSon > 1000) {
                 if (etat == Etat.COMMANDE) bip(false);
                 etat = Etat.VEILLE;
+                etatAffiche = "j'écoute";
                 ouvert = false;
                 asr.reset(sFr);
                 finConversation();
             }
         }
         if (rec != null) arreteMicro(rec);
+    }
+
+    private static void noteEntendu(String t) {
+        if (t != null && !t.trim().isEmpty()) dernierEntendu = t.trim();
     }
 
     private AudioRecord ouvreMicro() {

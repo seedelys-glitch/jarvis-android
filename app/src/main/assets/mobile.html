@@ -32,6 +32,9 @@
   /* appui : le bouton s'enfonce un peu (on sent que ça a pris) */
   .press { transition: transform var(--vite) var(--doux), background-color var(--vite); }
   .press:active { transform: scale(.94); }
+  .oreille { margin: 0 16px 4px; font-size: 12.5px; color: var(--cendre); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .oreille b { color: var(--or); font-weight: 500; }
+  .oreille.reveil b { color: var(--gain); }
 
   /* barre du haut */
   .bar { display: flex; align-items: center; gap: 4px; padding: 10px 8px 2px 16px; }
@@ -393,6 +396,7 @@
   <button type="button" class="press c-violet" id="moreBtn"><svg class="i" aria-hidden="true"><use href="#i-more"/></svg>Plus</button>
 </nav>
 
+<p class="oreille" id="oreille" aria-live="polite" hidden></p>
 <form class="composer" id="form" autocomplete="off">
   <div class="field"><input type="text" id="input" placeholder="Écris à Jarvis" enterkeyhint="send" aria-label="Message pour Jarvis">
     <button type="button" id="photo" aria-label="Envoyer une image à analyser"><svg class="i" aria-hidden="true"><use href="#i-photo"/></svg></button>
@@ -899,6 +903,19 @@ window.__voix = async (text) => {
   try { A.tourFini(); } catch (e) {}
 };
 window.__dire = (text) => { if (text) add(text, "jarvis"); };
+// « Eh Jarvis » : ce que le téléphone entend (pour vérifier et régler), mis à jour chaque seconde
+function majOreille() {
+  const el = $("oreille");
+  let e = null;
+  try { e = A.ecouteEtat ? JSON.parse(A.ecouteEtat()) : null; } catch (err) {}
+  if (!e || !e.actif) { el.hidden = true; return; }
+  el.hidden = false;
+  el.className = "oreille" + (e.reveil ? " reveil" : "");
+  el.textContent = "";
+  const b = document.createElement("b"); b.textContent = "Eh Jarvis : " + e.etat; el.appendChild(b);
+  if (e.entendu) el.append(" · entendu : « " + e.entendu + " »");
+}
+setInterval(() => { if (!document.hidden) majOreille(); }, 1000);
 
 // ---------- instrument : prix, journée, annonces, prière, ruban ----------
 function showFacts() {

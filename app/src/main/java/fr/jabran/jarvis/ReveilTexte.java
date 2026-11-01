@@ -30,6 +30,8 @@ public final class ReveilTexte {
 
     /** Mot collé ou abîmé qui ressemble à « Jarvis » (« aijarvi ») : seulement pour couper la commande. */
     private static final Pattern RESSEMBLE = Pattern.compile("\\S*(jarv|garv|gerv|charv|djarv)\\S*");
+    /** Pour le réveil : « jarv… » collé à un autre mot, mais pas « gerv… » (Gervais, Gervaise) ni « garv… ». */
+    private static final Pattern RESSEMBLE_REVEIL = Pattern.compile("[a-z]*(jarv|charv|djarv|jharv)[a-z]*");
 
     private static final Pattern SALUT = Pattern.compile("^(hey|he|eh|et|ai|salam\\w*|salut|bonjour)[\\s,.!?]+");
 
@@ -53,10 +55,23 @@ public final class ReveilTexte {
         return s;
     }
 
-    /** Le mot de réveil est-il dans la phrase ? */
+    /** Le mot de réveil est-il dans la phrase ? (aussi les mots abîmés : « lesjarvis », « jarvisson ») */
     public static boolean contientReveil(String texte) {
-        return REVEIL.matcher(normalise(texte)).find();
+        String n = normalise(texte);
+        return REVEIL.matcher(n).find() || RESSEMBLE_REVEIL.matcher(n).find();
     }
+
+    /** Commande trop courte pour être vraie (« sont », « euh ») : on attend la suite. */
+    public static boolean tropCourte(String cmd) {
+        String c = nettoie(normalise(cmd));
+        if (c.isEmpty()) return true;
+        if (c.contains(" ")) return false;
+        for (String w : COURTES_OK) if (c.equals(w)) return false;
+        return true;
+    }
+
+    private static final String[] COURTES_OK = {"merci", "stop", "heure", "meteo", "gold", "musique", "pause",
+            "suivant", "positions", "annule", "confirme", "reviens"};
 
     /**
      * Ce qu'il faut faire après « Jarvis » : ce qui suit le premier « Jarvis » de la phrase, sans

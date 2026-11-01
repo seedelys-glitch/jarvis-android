@@ -80,7 +80,7 @@ public class EcouteJarvis extends Service {
             + "▁ Z H AR VE ES :1.5 #0.15 @ZHARVEES\n";
     // « Jarvis » favorisé dans le modèle français (réglé par essais : 3.0)
     private static final String MOTS_FAVORIS_FR =
-            "▁ J ar vi s :3.0\n▁ J ar vi :3.0\n▁ G ar vi s :3.0\n▁ j ar vi s :3.0\n▁ J ar vi ce :3.0\n";
+            "▁ J ar vi s :3.0\n▁ J ar vi :3.0\n▁ G ar vi s :3.0\n▁ j ar vi s :3.0\n▁ J ar vi ce :3.0\n▁ j ar vi :3.0\n";
 
     private static final String[] FICHIERS = {
             "fr/encoder.onnx", "fr/decoder.onnx", "fr/joiner.onnx", "fr/tokens.txt",
@@ -401,7 +401,7 @@ public class EcouteJarvis extends Service {
             for (int i = 0; i < n; i++) { x[i] = pcm[i] / 32768f; e += (double) pcm[i] * pcm[i]; }
             double rms = Math.sqrt(e / n);
             fond = rms < fond ? fond * 0.9 + rms * 0.1 : fond * 0.998 + rms * 0.002;
-            boolean fort = rms > Math.max(fond * 2.2, 150);
+            boolean fort = rms > Math.max(fond * 1.8, 100);
             now = System.currentTimeMillis();
             if (fort) dernierSon = now;
 
@@ -456,6 +456,11 @@ public class EcouteJarvis extends Service {
                 // phrase du réveil : ce qui suit « Jarvis » ; phrase suivante : tout (sans « Jarvis » devant)
                 String cmd = premierePhrase ? ReveilTexte.apresReveil(brut) : ReveilTexte.enleveReveil(brut);
                 if (!brut.trim().isEmpty()) premierePhrase = false;
+                if (!cmd.isEmpty() && ReveilTexte.tropCourte(cmd)) {
+                    noteEntendu(brut);
+                    cmd = "";   // un mot tout seul (« sont ») : ce n'est pas une commande, j'attends la suite
+                    depuis = now;
+                }
                 if (!cmd.isEmpty()) {
                     if (ReveilTexte.estArret(cmd)) {
                         dire("D'accord, je n'écoute plus. Ouvre l'appli et coche « Eh Jarvis » dans les réglages pour me réveiller à nouveau.");

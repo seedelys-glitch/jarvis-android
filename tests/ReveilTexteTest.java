@@ -26,6 +26,12 @@ public class ReveilTexteTest {
         eq(ReveilTexte.apresReveil("euh Jarvis mets la musique"), "mets la musique", "avant le mot");
         eq(ReveilTexte.apresReveil("Aijarvi"), "", "mot collé");
         eq(ReveilTexte.apresReveil("Aijarvi, rentre à 4000"), "rentre a 4000", "mot collé + commande");
+        vrai(ReveilTexte.contientReveil("Les jarvis sont"), "les jarvis");
+        vrai(ReveilTexte.contientReveil("lesjarvis"), "collé");
+        eq(ReveilTexte.apresReveil("Les jarvis sont"), "sont", "après les jarvis");
+        vrai(ReveilTexte.tropCourte("sont"), "trop courte");
+        vrai(!ReveilTexte.tropCourte("merci"), "merci ok");
+        vrai(!ReveilTexte.tropCourte("c'est quoi le prix"), "vraie commande");
         eq(ReveilTexte.enleveReveil("Jarvis, ouvre YouTube"), "ouvre youtube", "enlève");
         eq(ReveilTexte.enleveReveil("c'est quoi le prix"), "c'est quoi le prix", "rien à enlever");
 

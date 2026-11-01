@@ -724,6 +724,7 @@ public class MainActivity extends Activity {
             android.content.Context app = getApplicationContext();
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 String t = "Rappel : " + texte;
+                android.util.Log.i("JarvisReveil", "rappel : " + texte);
                 MainActivity a = vivante();
                 if (a != null) a.direVoix(t);
                 try {

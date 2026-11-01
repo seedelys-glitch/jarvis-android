@@ -895,6 +895,7 @@ function dureeMs(c) {
   return ms;
 }
 function competences(c) {
+  c = c.replace(/-/g, " ").replace(/\s+/g, " ");   // « rappelle-moi », « souviens-toi » = « rappelle moi »…
   // rappels et minuteurs : « rappelle-moi dans 10 minutes d'appeler le client », « minuteur 5 minutes »
   if (/\b(rappelle moi|rappelle-moi|fais moi penser|minuteur|timer|chrono)\b/.test(c)) {
     const ms = dureeMs(c);
@@ -912,13 +913,14 @@ function competences(c) {
     return l.length ? "Tes dernières notes : " + l.map(n => n.x).join(". ") + "." : "Tu n'as pas encore de note.";
   }
   // mémoire : « retiens que je finis à 18 h », « qu'est-ce que tu sais sur moi », « oublie que … »
-  m = /^(?:retiens que|souviens toi que|n'oublie pas que)\s+(.+)$/.exec(c);
+  // la reconnaissance écrit souvent « retient que », « retien que », « souviens toi qu'il »
+  m = /^(?:retien[st]?|souvien[st]? toi|rappelle toi|n'oublie pas|garde en memoire|memorise)\s+(?:que\s+|qu')(.+)$/.exec(c);
   if (m) { const l = faits(); l.push(m[1]); ecrit("faits", l.slice(-60)); return "C'est retenu."; }
   if (/(qu'est ce que|que) tu sais (sur|de) moi/.test(c)) {
     const l = faits();
     return l.length ? "Je sais que " + l.slice(-6).join(", ") + "." : "Tu ne m'as encore rien demandé de retenir.";
   }
-  m = /^oublie que\s+(.+)$/.exec(c);
+  m = /^oublie (?:que\s+|qu')(.+)$/.exec(c);
   if (m) { ecrit("faits", faits().filter(x => !x.includes(m[1]))); return "C'est oublié."; }
   if (/^(oublie (tout|la discussion|notre discussion)|nouvelle discussion)$/.test(c)) { history = []; ecrit("discussion", null); return "On repart de zéro."; }
   // musique : ouvre l'appli de musique du téléphone

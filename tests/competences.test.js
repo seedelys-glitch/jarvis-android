@@ -21,6 +21,10 @@ eq(competences(norm("rappelle-moi d'appeler maman")).startsWith("Dans combien"),
 eq(competences(norm("note : acheter du lait")), "C'est noté.", "note");
 eq(competences(norm("mes notes")), "Tes dernières notes : acheter du lait.", "mes notes");
 eq(competences(norm("retiens que je finis à 18 h")), "C'est retenu.", "retiens");
+eq(competences(norm("retient que ma voiture est une Tesla")), "C'est retenu.", "retient (mal écrit)");
+eq(competences(norm("souviens-toi qu'il pleut")), "C'est retenu.", "souviens-toi qu'");
+eq(competences(norm("oublie que ma voiture")), "C'est oublié.", "oublie la voiture");
+eq(competences(norm("oublie qu'il pleut")), "C'est oublié.", "oublie qu'");
 eq(competences(norm("qu'est-ce que tu sais sur moi")), "Je sais que je finis a 18 h.", "sais sur moi");
 eq(competences(norm("oublie que je finis")), "C'est oublié.", "oublie");
 eq(competences(norm("mets de la musique")), "J'ouvre Spotify.", "musique");

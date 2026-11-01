@@ -33,6 +33,13 @@ public final class ReveilTexte {
     /** Pour le réveil : « jarv… » collé à un autre mot, mais pas « gerv… » (Gervais, Gervaise) ni « garv… ». */
     private static final Pattern RESSEMBLE_REVEIL = Pattern.compile("[a-z]*(jarv|charv|djarv|jharv)[a-z]*");
 
+    /**
+     * « Eh Jarvis » dont le « J » s'est perdu (« Ai-je Harvy », « et Arvis ») : accepté SEULEMENT en tout
+     * début de phrase et après « eh / et / hey / ai (je) », pour ne pas se réveiller sur « Harvey » au milieu d'une phrase.
+     */
+    private static final Pattern REVEIL_SALUT = Pattern.compile(
+            "^(hey|he|eh|et|ai|ai je|eh je|et je|hey je) (j )?(harv(y|ey|i|is|ie)|arvis|arvi|harbis)(?![a-z])");
+
     private static final Pattern SALUT = Pattern.compile("^(hey|he|eh|et|ai|salam\\w*|salut|bonjour)[\\s,.!?]+");
 
     /** Fin de discussion (PC : END_WORDS). */
@@ -58,7 +65,7 @@ public final class ReveilTexte {
     /** Le mot de réveil est-il dans la phrase ? (aussi les mots abîmés : « lesjarvis », « jarvisson ») */
     public static boolean contientReveil(String texte) {
         String n = normalise(texte);
-        return REVEIL.matcher(n).find() || RESSEMBLE_REVEIL.matcher(n).find();
+        return REVEIL.matcher(n).find() || RESSEMBLE_REVEIL.matcher(n).find() || REVEIL_SALUT.matcher(n).find();
     }
 
     /** Commande trop courte pour être vraie (« sont », « euh ») : on attend la suite. */
@@ -82,6 +89,8 @@ public final class ReveilTexte {
         String n = normalise(texte);
         Matcher m = REVEIL.matcher(n);
         if (!m.find()) {
+            m = REVEIL_SALUT.matcher(n);
+            if (m.find()) return enleveReveil(n.substring(m.end()));
             m = RESSEMBLE.matcher(n);
             if (!m.find()) return nettoie(n);
         }

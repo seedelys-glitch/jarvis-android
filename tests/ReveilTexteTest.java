@@ -37,6 +37,10 @@ public class ReveilTexteTest {
         eq(ReveilTexte.enleveReveil("Jarvis, ouvre YouTube"), "ouvre youtube", "enlève");
         eq(ReveilTexte.enleveReveil("c'est quoi le prix"), "c'est quoi le prix", "rien à enlever");
 
+        vrai(ReveilTexte.contientReveil("Ai-je Harvy ferme chrome"), "ai-je harvy");
+        eq(ReveilTexte.apresReveil("Ai-je Harvy ferme chrome"), "ferme chrome", "après ai-je harvy");
+        eq(ReveilTexte.apresReveil("Eh Arvis, quelle heure"), "quelle heure", "eh arvis");
+        vrai(!ReveilTexte.contientReveil("j'ai vu Harvey au garage"), "pas harvey au milieu");
         vrai(ReveilTexte.estFin("Merci."), "fin merci");
         vrai(ReveilTexte.estFin("ok merci"), "fin ok merci");
         vrai(ReveilTexte.estFin("C’est tout"), "fin c'est tout");

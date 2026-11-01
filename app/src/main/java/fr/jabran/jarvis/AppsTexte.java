@@ -28,6 +28,8 @@ public final class AppsTexte {
             "^(ouvre|ouvrir|ouvres|lance|lancer|demarre|demarrer|affiche|va sur|vas sur|mets|met)( moi)? (.+)$");
     private static final Pattern FERME = Pattern.compile(
             "^(ferme|fermer|fermes|quitte|quitter|arrete|tue|kill|eteins)( moi)? (.+)$");
+    /** « Ai-je à revi ? Ouvre Chrome » : un « Eh Jarvis » abîmé devant l'ordre (jusqu'à 4 mots). */
+    private static final Pattern DEBUT_ABIME = Pattern.compile("^(hey|he|eh|et|ai|euh)\\b[^,.!?]{0,30}?[,.!?]? (?=(ouvre|ouvrir|lance|demarre|ferme|fermer|quitte)\\b)");
     private static final Pattern ARTICLE = Pattern.compile(
             "^(l'application |l'appli |l'app |application |appli |app |l'|le |la |les |mon |ma |mes |un |une )+");
     private static final Pattern ACCUEIL_RE = Pattern.compile(
@@ -40,6 +42,7 @@ public final class AppsTexte {
         if (ACCUEIL_RE.matcher(n).matches()) return new Demande(ACCUEIL, "");
         if (RETOUR_RE.matcher(n).matches()) return new Demande(RETOUR, "");
         n = TEL.matcher(n).replaceFirst("");
+        n = DEBUT_ABIME.matcher(n).replaceFirst("");
         Matcher m = OUVRE.matcher(n);
         int action = OUVRIR;
         if (!m.matches()) {

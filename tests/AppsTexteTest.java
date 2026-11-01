@@ -27,6 +27,9 @@ public class AppsTexteTest {
         demande("ferme tout", AppsTexte.ACCUEIL, "");
         demande("écran d'accueil", AppsTexte.ACCUEIL, "");
         demande("retour", AppsTexte.RETOUR, "");
+        demande("Ai-je à revi? Ouvre chrome", AppsTexte.OUVRIR, "chrome");
+        demande("eh harvy, ferme Snapchat", AppsTexte.FERMER, "snapchat");
+        rien("et après on ira manger");
         rien("ouvre YouTube sur le PC");
         rien("ferme la page YouTube sur l'écran de gauche");
         rien("c'est quoi le prix du gold");

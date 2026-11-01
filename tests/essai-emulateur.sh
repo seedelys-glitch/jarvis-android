@@ -22,9 +22,11 @@ joue() {   # $1 = fichier, $2 = secondes d'attente
   adb shell run-as $P cp /data/local/tmp/essai.wav files/essai-audio.wav
   sleep $2
 }
-joue 1-heure 20
+joue 1-heure 9
 joue 2-merci 12
 sleep 14
+joue 7-memoire 25
+joue 8-rappel 20
 joue 3-ouvre-chrome 20
 adb shell dumpsys activity activities | grep -m1 "topResumedActivity\|mResumedActivity"
 joue 4-ferme-chrome 20
@@ -35,6 +37,6 @@ joue 6-hey-anglais 20
 
 adb shell pidof $P && echo "APPLI VIVANTE" || echo "APPLI MORTE"
 adb logcat -d > logcat.txt
-grep -E "JarvisReveil|JarvisPage|JarvisApps|AndroidRuntime|FATAL|sherpa-onnx.*(error|Error)|$P.*has died" logcat.txt > logcat-resume.txt
+grep -E "Rappel|JarvisReveil|JarvisPage|JarvisApps|AndroidRuntime|FATAL|sherpa-onnx.*(error|Error)|$P.*has died" logcat.txt > logcat-resume.txt
 cat logcat-resume.txt
 true

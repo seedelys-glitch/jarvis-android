@@ -25,7 +25,7 @@ public final class ReveilTexte {
      * du téléphone écrit souvent (« Jarvie », « Gervi », « Garvie »…).
      */
     public static final Pattern REVEIL = Pattern.compile(
-            "(?<![a-z])(jarvis+e?|jarvi[es]?|jar vis|jarre vis|jervis|garvis|garvie?|charvis|charvie|djarvis|"
+            "(?<![a-z])(jarvis+e?|jarvi[es]?|jari|jarvy|jar vis|jarre vis|jervis|garvis|garvie?|charvis|charvie|djarvis|"
                     + "jarvice|jarbis|jervice|gervi[es]?|gervice|gervy|j ?'?arrive is|gervais)(?![a-z])");
 
     /** Mot collé ou abîmé qui ressemble à « Jarvis » (« aijarvi ») : seulement pour couper la commande. */

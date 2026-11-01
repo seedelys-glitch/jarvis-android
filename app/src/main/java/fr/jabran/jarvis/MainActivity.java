@@ -334,7 +334,10 @@ public class MainActivity extends Activity {
         ArrayList<String> ordre = new ArrayList<>();
         String pref = prefs.getString("ia_pref", "auto");
         if (!"auto".equals(pref) && !cle(pref).isEmpty()) ordre.add(pref);
-        for (String id : IA_IDS) if (!ordre.contains(id) && !cle(id).isEmpty()) ordre.add(id);
+        // Automatique : Groq d'abord (la plus rapide, ~1 s, comme sur le PC), puis les autres
+        for (String id : new String[]{"groq", "gemini", "grok", "deepseek", "claude"}) {
+            if (!ordre.contains(id) && !cle(id).isEmpty()) ordre.add(id);
+        }
         return ordre;
     }
 
@@ -714,6 +717,28 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean reveilActif() { return EcouteJarvis.enMarche(); }
+
+        /** Rappel / minuteur : dit à voix haute + notification à l'heure (le service d'écoute garde le téléphone éveillé). */
+        @JavascriptInterface
+        public void rappel(long ms, String texte) {
+            android.content.Context app = getApplicationContext();
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                String t = "Rappel : " + texte;
+                MainActivity a = vivante();
+                if (a != null) a.direVoix(t);
+                try {
+                    android.app.NotificationManager nm = app.getSystemService(android.app.NotificationManager.class);
+                    if (android.os.Build.VERSION.SDK_INT >= 26) {
+                        nm.createNotificationChannel(new android.app.NotificationChannel("jarvis_rappels", "Rappels de Jarvis",
+                                android.app.NotificationManager.IMPORTANCE_HIGH));
+                    }
+                    android.app.Notification.Builder b = android.os.Build.VERSION.SDK_INT >= 26
+                            ? new android.app.Notification.Builder(app, "jarvis_rappels") : new android.app.Notification.Builder(app);
+                    nm.notify((int) (System.currentTimeMillis() % 100000), b.setSmallIcon(R.drawable.ic_jarvis)
+                            .setContentTitle("Rappel de Jarvis").setContentText(texte).setAutoCancel(true).build());
+                } catch (Exception ignored) { }
+            }, Math.max(1000, ms));
+        }
 
         /** « ouvre Waze », « ferme Snapchat »… : fait sur le téléphone ; "" = pas pour le téléphone. */
         @JavascriptInterface

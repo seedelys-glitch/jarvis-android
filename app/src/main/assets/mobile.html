@@ -838,22 +838,92 @@ async function trumpPosts(n) {
 }
 
 // ---------- discussion avec l'IA (sans le PC) ----------
-let history = [];
+// ---------- discussion sans le PC (comme cerveau.py du PC : elle se souvient, elle rebondit) ----------
+const MEMOIRE_MAX = 20, OUBLI_MS = 12 * 3600e3;          // 20 échanges, oubli après 12 h (comme le PC)
+function lit(cle, defaut) { try { const v = JSON.parse(localStorage.getItem(cle)); return v == null ? defaut : v; } catch (e) { return defaut; } }
+function ecrit(cle, v) { try { localStorage.setItem(cle, JSON.stringify(v)); } catch (e) {} }
+let history = (() => { const h = lit("discussion", null); return h && Date.now() - h.t < OUBLI_MS ? h.m : []; })();
+let ctxCache = { t: 0, txt: "" };
+async function contexteDuJour() {
+  // le brief change peu : gardé 10 min (avant, chaque question attendait le réseau : jusqu'à 30 s)
+  if (Date.now() - ctxCache.t < 600e3) return ctxCache.txt;
+  let txt = "";
+  try { txt = await Promise.race([briefPhrase(), new Promise(r => setTimeout(() => r(""), 2500))]); } catch (e) {}
+  ctxCache = { t: Date.now(), txt };
+  return txt;
+}
+function faits() { return lit("faits", []); }
 async function chatClaude(text) {
-  if (!A.hasClaude()) return "Ajoute ta clé IA gratuite (Gemini) dans les réglages pour discuter avec moi quand le PC est éteint.";
-  // prix déjà affiché en haut s'il a moins de 2 min : la réponse part plus vite
-  const g = (GOLD && Date.now() - GOLD.t < 120e3) ? GOLD : await goldPrice().catch(() => null);
-  const ctx = "Nous sommes le " + new Date().toLocaleString("fr-FR") + ". " + (g ? goldPhrase(g) : "") + " " + (await briefPhrase());
-  const system = "Tu es Jarvis, l'assistant personnel de Jabran, trader en prop firm sur le gold (Micro Gold MGC), musulman. " +
-    "Tu réponds en français, tu le tutoies, de façon naturelle et un peu classe, comme le Jarvis d'Iron Man. " +
-    "Réponses courtes (1 à 4 phrases), lues à voix haute : pas de listes, pas de markdown, pas d'émojis. " +
-    "Tu ne donnes jamais d'ordre d'achat ou de vente ferme ; la décision reste à Jabran.\n" + ctx;
+  if (!A.hasClaude()) return "Ajoute ta clé IA gratuite (Groq ou Gemini) dans les réglages pour discuter avec moi quand le PC est éteint.";
+  const g = (GOLD && Date.now() - GOLD.t < 300e3) ? GOLD : null;
+  const ctx = "Nous sommes le " + new Date().toLocaleString("fr-FR") + ". " + (g ? goldPhrase(g) : "") + " " + (await contexteDuJour());
+  const f = faits();
+  const system = "Tu es Jarvis, l'assistant personnel de Jabran : il est chauffeur VTC, trader en prop firm sur le gold (Micro Gold MGC), musulman. " +
+    "Tu parles avec lui sur son téléphone, souvent pendant qu'il conduit : réponses courtes (1 à 3 phrases), lues à voix haute, " +
+    "pas de listes, pas de markdown, pas d'émojis. Tu le tutoies, naturel et un peu classe, comme le Jarvis d'Iron Man. " +
+    "Vraie conversation : tu te souviens de ce qu'il a dit, tu rebondis, et si une phrase semble mal entendue tu devines le sens le plus probable. " +
+    "Ne termine pas chaque réponse par une question. Ne JAMAIS inventer une action que tu n'as pas faite ni un chiffre que tu ne connais pas : dis-le franchement. " +
+    "Tu ne donnes jamais d'ordre d'achat ou de vente ferme ; la décision reste à Jabran, et au volant la sécurité passe avant. " +
+    "Si Jabran te demande d'ouvrir ou de fermer une appli du téléphone (même dit autrement : « j'aimerais aller sur Waze »), " +
+    "réponds UNIQUEMENT « ACTION: ouvre <nom> » ou « ACTION: ferme <nom> ». " +
+    "Si il te demande de retenir quelque chose sur lui, réponds UNIQUEMENT « ACTION: retiens <le fait> ».\n" +
+    (f.length ? "Ce que tu sais de lui : " + f.slice(-30).join(" ; ") + ".\n" : "") + ctx;
   history.push({ role: "user", content: text });
-  history = history.slice(-12);
-  const r = await claude(history, system, 500);
-  const out = r.text || ("Souci avec l'IA : " + String(r.error || "").slice(0, 120));
-  if (r.text) history.push({ role: "assistant", content: r.text });
+  history = history.slice(-MEMOIRE_MAX * 2);
+  const r = await claude(history, system, 350);
+  let out = r.text || ("Souci avec l'IA : " + String(r.error || "").slice(0, 120));
+  const act = /^\s*ACTION:\s*(.+)$/i.exec(out || "");
+  if (act) {
+    const c = act[1].trim();
+    const m = /^retiens\s+(.+)/i.exec(c);
+    if (m) { const l = faits(); l.push(m[1].replace(/[.]$/, "")); ecrit("faits", l.slice(-60)); out = "C'est noté, je m'en souviendrai."; }
+    else out = (A.appsTel ? A.appsTel(c) : "") || "Je n'ai pas trouvé cette appli sur ton téléphone.";
+  }
+  if (r.text) { history.push({ role: "assistant", content: out }); ecrit("discussion", { t: Date.now(), m: history }); }
   return out;
+}
+
+// ---------- petites compétences du téléphone (comme competences.py du PC) ----------
+function dureeMs(c) {
+  const m = /(\d+|une?|deux|trois|quatre|cinq|dix|quinze|vingt|trente)\s*(secondes?|s\b|minutes?|min\b|heures?|h\b)/.exec(c);
+  if (!m) return 0;
+  const mots = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, dix: 10, quinze: 15, vingt: 20, trente: 30 };
+  const n = /\d/.test(m[1]) ? parseInt(m[1], 10) : mots[m[1]];
+  const u = m[2][0] === "s" ? 1e3 : m[2][0] === "m" ? 60e3 : 3600e3;
+  let ms = n * u;
+  if (/et (demi|demie)/.test(c)) ms += u / 2;
+  return ms;
+}
+function competences(c) {
+  // rappels et minuteurs : « rappelle-moi dans 10 minutes d'appeler le client », « minuteur 5 minutes »
+  if (/\b(rappelle moi|rappelle-moi|fais moi penser|minuteur|timer|chrono)\b/.test(c)) {
+    const ms = dureeMs(c);
+    if (!ms) return "Dans combien de temps ? Par exemple : rappelle-moi dans 10 minutes d'appeler le client.";
+    const quoi = (c.split(/\b(?:secondes?|minutes?|min|heures?|h)\b/)[1] || "").replace(/^\s*(et demie?)?\s*(de |d'|que |pour )?/, "").trim();
+    A.rappel ? A.rappel(ms, quoi || "ton minuteur est fini") : setTimeout(() => A.speak("Rappel : " + (quoi || "minuteur fini")), ms);
+    const min = Math.round(ms / 60e3);
+    return "D'accord, je te le rappelle dans " + (ms < 60e3 ? Math.round(ms / 1e3) + " secondes" : min >= 60 ? (min / 60).toLocaleString("fr-FR") + " heure" + (min >= 120 ? "s" : "") : min + " minute" + (min > 1 ? "s" : "")) + ".";
+  }
+  // notes et idées : « note : acheter du lait », « j'ai une idée … », « mes notes »
+  let m = /^(?:note|prends note|ajoute une note|note une idee|j'ai une idee)\s*:?\s*(.+)$/.exec(c);
+  if (m && m[1].length > 2) { const l = lit("notes", []); l.push({ t: Date.now(), x: m[1] }); ecrit("notes", l.slice(-200)); return "C'est noté."; }
+  if (/^(mes notes|lis mes notes|mes idees)$/.test(c)) {
+    const l = lit("notes", []).slice(-5);
+    return l.length ? "Tes dernières notes : " + l.map(n => n.x).join(". ") + "." : "Tu n'as pas encore de note.";
+  }
+  // mémoire : « retiens que je finis à 18 h », « qu'est-ce que tu sais sur moi », « oublie que … »
+  m = /^(?:retiens que|souviens toi que|n'oublie pas que)\s+(.+)$/.exec(c);
+  if (m) { const l = faits(); l.push(m[1]); ecrit("faits", l.slice(-60)); return "C'est retenu."; }
+  if (/(qu'est ce que|que) tu sais (sur|de) moi/.test(c)) {
+    const l = faits();
+    return l.length ? "Je sais que " + l.slice(-6).join(", ") + "." : "Tu ne m'as encore rien demandé de retenir.";
+  }
+  m = /^oublie que\s+(.+)$/.exec(c);
+  if (m) { ecrit("faits", faits().filter(x => !x.includes(m[1]))); return "C'est oublié."; }
+  if (/^(oublie (tout|la discussion|notre discussion)|nouvelle discussion)$/.test(c)) { history = []; ecrit("discussion", null); return "On repart de zéro."; }
+  // musique : ouvre l'appli de musique du téléphone
+  if (/^(mets|lance|joue)( moi)? (de la |la )?musique$/.test(c)) return (A.appsTel && (A.appsTel("ouvre spotify") || A.appsTel("ouvre youtube music") || A.appsTel("ouvre deezer"))) || "";
+  return "";
 }
 
 // ---------- commandes ----------
@@ -870,6 +940,11 @@ async function localCommand(text) {
                       : "Rien d'important pour le gold dans les derniers posts de Trump.";
   }
   if (has("rallume", "allume le pc", "demarre le pc")) { return A.wake(); }
+  if (/\b(rentre|rentrer|entre|entrer|position|sl|stop loss|je confirme|passe un ordre|achete|vends)\b/.test(c) && /\d/.test(c)) {
+    return "Ton PC est éteint ou loin : les positions papier passent par le Jarvis du PC. Rallume-le et redis-moi ta position.";
+  }
+  const comp = competences(c.replace(/[.!?]+$/, "").trim());
+  if (comp) return comp;
   if (short && /\b(quelle heure|l'heure|il est quelle heure)\b/.test(c)) {
     const d = new Date(); return "Il est " + d.getHours() + " h " + String(d.getMinutes()).padStart(2, "0") + ".";
   }

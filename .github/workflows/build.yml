@@ -58,8 +58,10 @@ jobs:
           ls -la app/libs app/src/main/assets/reveil/*
       - name: Tests du réveil (mots, fin de discussion)
         run: |
-          javac -encoding UTF-8 -d /tmp/t app/src/main/java/fr/jabran/jarvis/ReveilTexte.java tests/ReveilTexteTest.java
+          javac -encoding UTF-8 -d /tmp/t app/src/main/java/fr/jabran/jarvis/ReveilTexte.java app/src/main/java/fr/jabran/jarvis/AppsTexte.java tests/ReveilTexteTest.java tests/AppsTexteTest.java
           java -cp /tmp/t ReveilTexteTest
+          java -cp /tmp/t AppsTexteTest
+          node tests/competences.test.js
       - name: Construire
         run: gradle assembleDebug --no-daemon
       - name: Renommer

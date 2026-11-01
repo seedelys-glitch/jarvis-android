@@ -375,6 +375,7 @@ public class EcouteJarvis extends Service {
                     if (tourFini) {
                         tourFini = false;
                         etat = Etat.SUITE;
+                        Log.i(TAG, "réponse dite : 12 s pour enchaîner sans redire « Jarvis »");
                         depuis = System.currentTimeMillis();
                         asr.reset(sFr);
                         continue;
@@ -481,6 +482,7 @@ public class EcouteJarvis extends Service {
                         return;
                     }
                     if (etat == Etat.SUITE && ReveilTexte.estFin(cmd)) {
+                        Log.i(TAG, "fin de la discussion : " + cmd);
                         dire("Avec plaisir.");
                         etat = Etat.VEILLE;
                         finConversation();

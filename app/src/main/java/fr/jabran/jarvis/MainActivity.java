@@ -94,6 +94,7 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("jarvis", MODE_PRIVATE);
         migrerCles();
         instance = new WeakReference<>(this);
+        noterPlantages();
 
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#050102"));
@@ -175,6 +176,28 @@ public class MainActivity extends Activity {
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    /** Si l'appli plante, la cause est gardée et montrée au lancement suivant (pour la corriger). */
+    private void noterPlantages() {
+        java.io.File f = new java.io.File(getFilesDir(), "plantage.txt");
+        Thread.UncaughtExceptionHandler avant = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try (java.io.PrintWriter w = new java.io.PrintWriter(f, "UTF-8")) {
+                w.println("Android " + android.os.Build.VERSION.RELEASE + ", " + android.os.Build.MODEL + ", fil " + t.getName());
+                e.printStackTrace(w);
+            } catch (Exception ignored) { }
+            if (avant != null) avant.uncaughtException(t, e);
+        });
+        if (f.isFile()) {
+            String txt = "";
+            try { txt = new String(java.nio.file.Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8); } catch (Exception ignored) { }
+            f.delete();
+            if (txt.length() > 1500) txt = txt.substring(0, 1500);
+            new AlertDialog.Builder(this).setTitle("L'appli a planté la dernière fois")
+                    .setMessage("Fais une capture d'écran de ce message et envoie-la à Claude :\n\n" + txt)
+                    .setPositiveButton("OK", null).show();
+        }
     }
 
     @Override

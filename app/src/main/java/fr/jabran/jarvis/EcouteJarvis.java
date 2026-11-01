@@ -316,6 +316,7 @@ public class EcouteJarvis extends Service {
             majNotif("Le détecteur « Jarvis » n'a pas pu démarrer : " + e.getMessage());
             return;
         }
+        Log.i(TAG, "modèles chargés (anglais : " + (kws != null) + ")");
         OnlineStream sFr = asr.createStream("");
         OnlineStream sEn = kws != null ? kws.createStream("") : null;
 

@@ -41,6 +41,25 @@ jobs:
           else
             echo "::warning::Secret JARVIS_CLE absent : signature aléatoire (il faudra désinstaller l'ancienne appli)."
           fi
+      - name: Réveil « Eh Jarvis » (moteur sherpa-onnx + 2 modèles, tout reste dans le téléphone)
+        run: |
+          set -e
+          mkdir -p app/libs app/src/main/assets/reveil/fr app/src/main/assets/reveil/en
+          R=https://github.com/k2-fsa/sherpa-onnx/releases/download
+          curl -sSfL -o app/libs/sherpa-onnx.aar $R/v2.0.1/sherpa-onnx-2.0.1.aar
+          # français (Kroko) : écrit « Eh Jarvis » dit à la française + la commande
+          curl -sSfL $R/asr-models/sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06.tar.bz2 | tar xj
+          cp sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06/{encoder,decoder,joiner}.onnx sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06/tokens.txt app/src/main/assets/reveil/fr/
+          # anglais (le même petit détecteur que le PC) : « Hey Jarvis » dit à l'anglaise
+          curl -sSfL $R/kws-models/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01.tar.bz2 | tar xj
+          K=sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01
+          for f in encoder decoder joiner; do cp $K/$f-epoch-12-avg-2-chunk-16-left-64.int8.onnx app/src/main/assets/reveil/en/$f.int8.onnx; done
+          cp $K/tokens.txt app/src/main/assets/reveil/en/
+          ls -la app/libs app/src/main/assets/reveil/*
+      - name: Tests du réveil (mots, fin de discussion)
+        run: |
+          javac -encoding UTF-8 -d /tmp/t app/src/main/java/fr/jabran/jarvis/ReveilTexte.java tests/ReveilTexteTest.java
+          java -cp /tmp/t ReveilTexteTest
       - name: Construire
         run: gradle assembleDebug --no-daemon
       - name: Renommer

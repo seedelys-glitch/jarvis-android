@@ -869,9 +869,9 @@ async function localCommand(text) {
   return await chatClaude(text);
 }
 
-async function handle(text) {
+async function handle(text, voix) {
   text = text.trim(); if (!text) return;
-  add(text, "me");
+  add(voix ? "🎙 " + text : text, "me");
   const wait = add("", "jarvis typing");
   let replies = [];
   try {
@@ -887,9 +887,18 @@ async function handle(text) {
     }
   } catch (e) { replies = ["Petit souci : " + e.message]; }
   wait.remove();
-  for (const r of replies) { add(r, "jarvis"); say(r); }
+  for (const r of replies) { add(r, "jarvis"); if (voix) A.speak(r); else say(r); }
   refresh(true);
 }
+
+// « Eh Jarvis » : la commande entendue par le téléphone (mains libres). La réponse est TOUJOURS dite
+// à voix haute (même son coupé), puis Jarvis écoute encore 12 s pour la suite.
+window.__voix = async (text) => {
+  vibre();
+  try { await handle(text, true); } catch (e) { A.speak("Petit souci : " + e.message); }
+  try { A.tourFini(); } catch (e) {}
+};
+window.__dire = (text) => { if (text) add(text, "jarvis"); };
 
 // ---------- instrument : prix, journée, annonces, prière, ruban ----------
 function showFacts() {

@@ -14,6 +14,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.text.InputType;
 import android.view.HapticFeedbackConstants;
 import android.view.ViewGroup;
@@ -46,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
+import java.lang.ref.WeakReference;
 
 /**
  * Jarvis pour Android.
@@ -73,12 +75,25 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;   // choix d'une image (bouton photo de la page)
     private static final int PICK_IMAGE = 42;
 
+    // « Eh Jarvis » (EcouteJarvis.java) : la commande entendue arrive ici, même appli derrière le GPS
+    static final String EXTRA_VOIX = "voix";
+    private static WeakReference<MainActivity> instance = new WeakReference<>(null);
+    private boolean pageChargee = false;
+    private String voixEnAttente = null;     // commande arrivée avant la fin du chargement de la page
+    private boolean ouverteParLaVoix = false; // ouverte toute seule par « Eh Jarvis » : on se remet derrière après
+    private int parolesEnCours = 0;           // réponses encore à dire
+    private boolean tourVocal = false;        // une commande vocale attend la fin de sa réponse
+    private boolean tourAnnonce = false;      // la page a envoyé toute la réponse à dire
+
+    static MainActivity vivante() { return instance.get(); }
+
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("jarvis", MODE_PRIVATE);
         migrerCles();
+        instance = new WeakReference<>(this);
 
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#050102"));
@@ -93,7 +108,13 @@ public class MainActivity extends Activity {
         // taille du texte choisie dans les réglages du téléphone (accessibilité), jusqu'à 160 %
         s.setTextZoom(Math.round(Math.min(1.6f, getResources().getConfiguration().fontScale) * 100));
         web.addJavascriptInterface(new Bridge(), "JarvisAndroid");
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                pageChargee = true;
+                if (voixEnAttente != null) { String c = voixEnAttente; voixEnAttente = null; commandeVocale(c); }
+            }
+        });
         // Bouton photo de la page : ouvre la galerie (captures TradingView, photos).
         web.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -117,13 +138,26 @@ public class MainActivity extends Activity {
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 tts.setLanguage(Locale.FRANCE);
+                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override public void onStart(String id) { }
+                    @Override public void onDone(String id) { paroleFinie(); }
+                    @Override public void onError(String id) { paroleFinie(); }
+                    @Override public void onStop(String id, boolean interrupted) { paroleFinie(); }
+                });
                 ttsReady = true;
             }
         });
 
+        ArrayList<String> droits = new ArrayList<>();
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+            droits.add(Manifest.permission.RECORD_AUDIO);
         }
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            droits.add("android.permission.POST_NOTIFICATIONS");   // la petite notification « Jarvis t'écoute »
+        }
+        if (!droits.isEmpty()) requestPermissions(droits.toArray(new String[0]), 1);
+        lireIntent(getIntent());
 
         web.loadUrl("file:///android_asset/mobile.html");
         if (prefs.getString("code", "").isEmpty() && !aUneCle()) {
@@ -144,7 +178,68 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        EcouteJarvis.demarrer(this);   // micro autorisé : « Eh Jarvis » démarre
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        lireIntent(intent);
+    }
+
+    /** Ouverte par « Eh Jarvis » : par-dessus l'écran verrouillé, et la commande part tout de suite. */
+    private void lireIntent(Intent i) {
+        String cmd = i != null ? i.getStringExtra(EXTRA_VOIX) : null;
+        if (cmd == null || cmd.isEmpty()) return;
+        i.removeExtra(EXTRA_VOIX);
+        ouverteParLaVoix = true;
+        if (android.os.Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
+        commandeVocale(cmd);
+    }
+
+    // ------------------------------------------------------------------ « Eh Jarvis » : appelé par EcouteJarvis
+    /** Une commande dite après « Jarvis » : traitée comme si tu l'avais tapée (PC s'il répond, sinon IA du téléphone). */
+    void commandeVocale(String cmd) {
+        runOnUiThread(() -> {
+            if (!pageChargee) { voixEnAttente = cmd; return; }
+            synchronized (MainActivity.this) { tourVocal = true; tourAnnonce = false; }
+            web.evaluateJavascript("window.__voix ? window.__voix(" + JSONObject.quote(cmd) + ") : JarvisAndroid.tourFini()", null);
+        });
+    }
+
+    /** Petite phrase dite par l'écoute (« Avec plaisir. »). */
+    void direVoix(String texte) {
+        runOnUiThread(() -> {
+            if (ttsReady) tts.speak(texte, TextToSpeech.QUEUE_ADD, null, "v" + System.nanoTime());
+            web.evaluateJavascript("window.__dire && window.__dire(" + JSONObject.quote(texte) + ")", null);
+        });
+    }
+
+    /** La discussion à la voix est finie : si l'appli s'était ouverte toute seule, elle se remet derrière. */
+    void finConversationVocale() {
+        runOnUiThread(() -> {
+            if (ouverteParLaVoix) {
+                ouverteParLaVoix = false;
+                if (android.os.Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(false); setTurnScreenOn(false); }
+                moveTaskToBack(true);
+            }
+        });
+    }
+
+    private synchronized void paroleFinie() {
+        if (parolesEnCours > 0) parolesEnCours--;
+        if (parolesEnCours == 0 && tourVocal && tourAnnonce) {
+            tourVocal = false;
+            EcouteJarvis.finDuTour();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
+        if (instance.get() == this) instance = new WeakReference<>(null);
         if (tts != null) tts.shutdown();
         if (recognizer != null) recognizer.destroy();
         super.onDestroy();
@@ -167,6 +262,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        EcouteJarvis.demarrer(this);   // Android n'autorise le micro en continu que s'il démarre appli ouverte
         if (web != null) web.evaluateJavascript("window.__app && window.__app(true)", null);
     }
 
@@ -277,6 +373,24 @@ public class MainActivity extends Activity {
             box.addView(autoriser);
         }
 
+        // « Eh Jarvis » : réveil à la voix, mains libres (EcouteJarvis.java)
+        android.widget.CheckBox reveil = new android.widget.CheckBox(this);
+        reveil.setText("Me réveiller quand je dis « Eh Jarvis » (mains libres, tout reste dans le téléphone)");
+        reveil.setChecked(EcouteJarvis.active(this));
+        reveil.setPadding(0, 18, 0, 0);
+        box.addView(reveil);
+        if (android.os.Build.VERSION.SDK_INT >= 29 && !android.provider.Settings.canDrawOverlays(this)) {
+            android.widget.Button ouvrir = new android.widget.Button(this);
+            ouvrir.setText("Autoriser Jarvis à s'ouvrir tout seul (appli fermée)");
+            ouvrir.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName())));
+                } catch (Exception ignored) { }
+            });
+            box.addView(ouvrir);
+        }
+
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);
         new AlertDialog.Builder(this)
@@ -295,7 +409,10 @@ public class MainActivity extends Activity {
                     int sel = pref.getSelectedItemPosition();
                     ed.putString("ia_pref", sel <= 0 ? "auto" : IA_IDS[sel - 1]);
                     ed.putBoolean(AlertesTradingView.PREF, alertes.isChecked());
+                    ed.putBoolean(EcouteJarvis.PREF, reveil.isChecked());
                     ed.apply();
+                    if (reveil.isChecked()) EcouteJarvis.demarrer(MainActivity.this);
+                    else EcouteJarvis.arreter(MainActivity.this);
                     web.reload();
                 })
                 .setNegativeButton("Annuler", null)
@@ -537,17 +654,36 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void speak(String text) {
-            if (ttsReady) tts.speak(text, TextToSpeech.QUEUE_ADD, null, "j" + System.nanoTime());
+            if (ttsReady) {
+                synchronized (MainActivity.this) { parolesEnCours++; }
+                if (tts.speak(text, TextToSpeech.QUEUE_ADD, null, "j" + System.nanoTime()) != TextToSpeech.SUCCESS) paroleFinie();
+            }
+        }
+
+        /** La réponse à une commande vocale est envoyée à la voix : l'écoute reprend quand elle est dite. */
+        @JavascriptInterface
+        public void tourFini() {
+            synchronized (MainActivity.this) {
+                tourAnnonce = true;
+                if (parolesEnCours == 0) {
+                    tourVocal = false;
+                    EcouteJarvis.finDuTour();
+                }
+            }
         }
 
         @JavascriptInterface
+        public boolean reveilActif() { return EcouteJarvis.enMarche(); }
+
+        @JavascriptInterface
         public void stopSpeak() {
-            if (ttsReady) tts.stop();
+            if (ttsReady) { synchronized (MainActivity.this) { parolesEnCours = 0; } tts.stop(); }
         }
 
         /** Reconnaissance vocale du téléphone ; le texte revient dans window.__onSpeech. */
         @JavascriptInterface
         public void listen() {
+            EcouteJarvis.microAppli(true);   // le bouton micro prend le micro : « Eh Jarvis » se met en pause
             runOnUiThread(() -> {
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
@@ -801,6 +937,7 @@ public class MainActivity extends Activity {
     }
 
     private void speechResult(String text, String err) {
+        EcouteJarvis.microAppli(false);
         String js = "window.__onSpeech(" + (text == null ? "null" : JSONObject.quote(text)) + ","
                 + JSONObject.quote(err == null ? "" : err) + ")";
         runOnUiThread(() -> web.evaluateJavascript(js, null));

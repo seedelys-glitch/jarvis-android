@@ -60,16 +60,25 @@ final class AppsTelephone {
                 return "Android m'empêche d'ouvrir " + nom + " : active « Jarvis mains libres » dans les réglages de Jarvis.";
             }
         }
-        // FERMER : si l'appli est devant, retour à l'accueil d'abord, puis on l'arrête
+        // FERMER : par l'écran des applis récentes (la seule vraie fermeture qu'Android permet), sinon arrière-plan
+        ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+        final String nomF = nom, paquetF = paquet;
+        boolean lance = MainsLibres.fermerParRecents(nom, ferme -> {
+            if (!ferme) {
+                try { am.killBackgroundProcesses(paquetF); } catch (Exception ignored) { }
+                MainActivity a = MainActivity.vivante();
+                if (a != null) a.direVoix("Je n'ai pas réussi à fermer complètement " + nomF + " : je l'ai mise en arrière-plan.");
+            }
+        });
+        if (lance) return "Je ferme " + nom + ".";
         boolean devant = paquet.equals(MainsLibres.appDevant);
         if (devant && !MainsLibres.accueil()) {
-            return "Pour fermer " + nom + " quand elle est devant toi, active « Jarvis mains libres » dans les réglages de Jarvis.";
+            return "Pour fermer " + nom + ", active « Jarvis mains libres » dans les réglages de Jarvis.";
         }
-        ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             try { am.killBackgroundProcesses(paquet); } catch (Exception ignored) { }
         }, devant ? 1200 : 0);
-        return "J'ai fermé " + nom + ".";
+        return "J'ai mis " + nom + " en arrière-plan. Pour la fermer complètement, active « Jarvis mains libres » dans les réglages.";
     }
 
     /** Le service « Jarvis mains libres » est-il activé dans Accessibilité ? */

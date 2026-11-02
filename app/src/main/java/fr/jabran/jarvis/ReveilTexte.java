@@ -1,6 +1,10 @@
 package fr.jabran.jarvis;
 
 import java.text.Normalizer;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,7 +70,8 @@ public final class ReveilTexte {
     /** Le mot de réveil est-il dans la phrase ? (aussi les mots abîmés : « lesjarvis », « jarvisson ») */
     public static boolean contientReveil(String texte) {
         String n = normalise(texte);
-        return REVEIL.matcher(n).find() || RESSEMBLE_REVEIL.matcher(n).find() || REVEIL_SALUT.matcher(n).find();
+        return REVEIL.matcher(n).find() || RESSEMBLE_REVEIL.matcher(n).find() || REVEIL_SALUT.matcher(n).find()
+                || longueurPerso(n) > 0;
     }
 
     /** Commande trop courte pour être vraie (« sont », « euh ») : on attend la suite. */
@@ -90,6 +95,8 @@ public final class ReveilTexte {
         String n = normalise(texte);
         Matcher m = REVEIL.matcher(n);
         if (!m.find()) {
+            int lp = longueurPerso(n);
+            if (lp > 0) return enleveReveil(n.substring(lp));
             m = REVEIL_SALUT.matcher(n);
             if (m.find()) return enleveReveil(n.substring(m.end()));
             m = RESSEMBLE.matcher(n);
@@ -123,6 +130,86 @@ public final class ReveilTexte {
     public static boolean estArret(String commande) {
         return ARRET.matcher(normalise(commande)).find();
     }
+
+    // ------------------------------------------------------------------ « viens » / « tu peux partir »
+    private static final Pattern VENIR = Pattern.compile(
+            "^(viens|viens ici|viens voir|reviens|montre toi|ouvre toi|affiche toi|apparais|t'es ou|tu es ou|"
+                    + "ouvre l'appli|ouvre l'application|ouvre jarvis|reveille toi|j'ai besoin de toi)( stp| s'il te plait)?$");
+    private static final Pattern PARTIR = Pattern.compile(
+            "(tu peux (partir|y aller|disparaitre|te cacher|t'en aller|te fermer|fermer)|va t'en|vas y tu peux|cache toi|"
+                    + "disparais|ferme toi|reduis toi|degage|casse toi|au revoir|bye|a plus tard|a toute)");
+
+    /** « Jarvis, viens » : l'appli passe devant. */
+    public static boolean estVenir(String cmd) {
+        return VENIR.matcher(nettoie(normalise(cmd))).matches();
+    }
+
+    /** « C'est bon, tu peux partir » : fin de la discussion et l'appli se remet derrière. */
+    public static boolean estPartir(String cmd) {
+        String c = nettoie(normalise(cmd));
+        return c.split(" ").length <= 8 && PARTIR.matcher(c).find();
+    }
+
+    // ------------------------------------------------------------------ ta façon de dire « Eh Jarvis » (apprise)
+    private static final Set<String> PERSO = new LinkedHashSet<>();
+    private static final Set<String> BANALS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "et", "je", "j'", "eh", "he", "hey", "ai", "a", "le", "la", "les", "de", "il", "elle", "on", "tu", "est",
+            "c'est", "ce", "que", "qui", "un", "une", "oui", "non", "ok", "euh", "ah", "oh", "bon", "alors", "mais"));
+
+    /** Les façons de dire « Eh Jarvis » apprises avec « Jarvis, apprends ma voix » (début de phrase). */
+    public static synchronized void reglerPerso(Set<String> variantes) {
+        PERSO.clear();
+        for (String v : variantes) {
+            String n = nettoie(normalise(v));
+            if (n.length() >= 4) PERSO.add(n);
+        }
+    }
+
+    /** Ce que la reconnaissance a écrit pour un « Eh Jarvis » d'apprentissage -> la variante à retenir (ou ""). */
+    public static String varianteApprise(String entendu) {
+        String n = nettoie(normalise(entendu)).replaceAll("[,.!?;:]", "");
+        String[] w = n.split(" ");
+        if (n.length() < 4 || w.length > 4) return "";
+        boolean banal = true;
+        for (String x : w) if (!BANALS.contains(x)) banal = false;
+        return banal ? "" : n;   // « et je » tout seul réveillerait Jarvis à chaque phrase
+    }
+
+    /** Longueur de la variante apprise au début de la phrase (0 = aucune). */
+    static synchronized int longueurPerso(String n) {
+        for (String v : PERSO) {
+            StringBuilder r = new StringBuilder("^");
+            String[] w = v.split(" ");
+            for (int i = 0; i < w.length; i++) r.append(i == 0 ? "" : "[\\s,.!?;:]+").append(Pattern.quote(w[i]));
+            Matcher m = Pattern.compile(r + "(?![a-z0-9])").matcher(n);
+            if (m.find()) return Math.max(1, m.end());
+        }
+        return 0;
+    }
+
+    // ------------------------------------------------------------------ « quand tu entends X, c'est Y »
+    private static final Pattern CORRIGE = Pattern.compile(
+            "^quand tu entends (.+?),? (c'est|ca veut dire|je dis|je veux dire|il faut comprendre) (.+)$");
+
+    /** « quand tu entends Waz, c'est Waze » -> {"waz", "waze"} ; sinon null. */
+    public static String[] lireCorrection(String cmd) {
+        Matcher m = CORRIGE.matcher(nettoie(normalise(cmd)));
+        if (!m.matches()) return null;
+        String de = m.group(1).replaceAll("^(le mot |« |\")|( »|\")$", "").trim(), vers = m.group(3).trim();
+        if (de.length() < 2 || vers.isEmpty() || de.equals(vers)) return null;
+        return new String[]{de, vers};
+    }
+
+    /** Applique tes corrections (mot entier) à la commande déjà normalisée. */
+    public static String corriger(String cmd, Map<String, String> corrections) {
+        String c = cmd;
+        for (Map.Entry<String, String> e : corrections.entrySet()) {
+            c = c.replaceAll("(?<![a-z0-9])" + Pattern.quote(e.getKey()) + "(?![a-z0-9])", Matcher.quoteReplacement(e.getValue()));
+        }
+        return c;
+    }
+
+    static Map<String, String> nouvelleTable() { return new LinkedHashMap<>(); }
 
     private static String nettoie(String s) {
         return s.replaceAll("^[\\s,.!?;:]+|[\\s,.!?;:]+$", "");

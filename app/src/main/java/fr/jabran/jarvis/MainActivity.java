@@ -77,6 +77,7 @@ public class MainActivity extends Activity {
 
     // « Eh Jarvis » (EcouteJarvis.java) : la commande entendue arrive ici, même appli derrière le GPS
     static final String EXTRA_VOIX = "voix";
+    static final String EXTRA_VENIR = "venir";   // « Jarvis, viens » : juste passer devant
     private static WeakReference<MainActivity> instance = new WeakReference<>(null);
     private boolean pageChargee = false;
     private String voixEnAttente = null;     // commande arrivée avant la fin du chargement de la page
@@ -221,6 +222,12 @@ public class MainActivity extends Activity {
 
     /** Ouverte par « Eh Jarvis » : par-dessus l'écran verrouillé, et la commande part tout de suite. */
     private void lireIntent(Intent i) {
+        if (i != null && i.getBooleanExtra(EXTRA_VENIR, false)) {
+            i.removeExtra(EXTRA_VENIR);
+            ouverteParLaVoix = true;
+            if (android.os.Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
+            return;
+        }
         String cmd = i != null ? i.getStringExtra(EXTRA_VOIX) : null;
         if (cmd == null || cmd.isEmpty()) return;
         i.removeExtra(EXTRA_VOIX);
@@ -245,6 +252,30 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             if (ttsReady) tts.speak(texte, TextToSpeech.QUEUE_ADD, null, "v" + System.nanoTime());
             web.evaluateJavascript("window.__dire && window.__dire(" + JSONObject.quote(texte) + ")", null);
+        });
+    }
+
+    /** Phrase de l'écoute elle-même (« Oui, je suis là. ») : l'écoute reprend quand elle est dite. */
+    void direPuisEcoute(String texte) {
+        runOnUiThread(() -> {
+            web.evaluateJavascript("window.__dire && window.__dire(" + JSONObject.quote(texte) + ")", null);
+            synchronized (MainActivity.this) { tourVocal = true; tourAnnonce = true; }
+            if (ttsReady) {
+                synchronized (MainActivity.this) { parolesEnCours++; }
+                if (tts.speak(texte, TextToSpeech.QUEUE_ADD, null, "j" + System.nanoTime()) != TextToSpeech.SUCCESS) paroleFinie();
+            } else {
+                synchronized (MainActivity.this) { tourVocal = false; }
+                EcouteJarvis.finDuTour();
+            }
+        });
+    }
+
+    /** « C'est bon, tu peux partir » : l'appli se remet derrière, quelle que soit la façon dont elle a été ouverte. */
+    void partir() {
+        runOnUiThread(() -> {
+            ouverteParLaVoix = false;
+            if (android.os.Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(false); setTurnScreenOn(false); }
+            moveTaskToBack(true);
         });
     }
 
@@ -423,6 +454,19 @@ public class MainActivity extends Activity {
             });
             box.addView(ouvrir);
         }
+
+        // Journal de la discussion à la voix : ce qu'il a entendu et répondu (pour l'améliorer avec Claude)
+        android.widget.Button journal = new android.widget.Button(this);
+        journal.setText("Envoyer mon journal vocal (ce que Jarvis a entendu et répondu)");
+        journal.setOnClickListener(v -> {
+            String t = EcouteJarvis.journalTexte(this);
+            if (t.isEmpty()) { android.widget.Toast.makeText(this, "Le journal est vide pour l'instant.", android.widget.Toast.LENGTH_SHORT).show(); return; }
+            Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "Journal vocal de Jarvis")
+                    .putExtra(Intent.EXTRA_TEXT, "Journal vocal de Jarvis (téléphone)\n\n" + t);
+            try { startActivity(Intent.createChooser(send, "Envoyer le journal")); } catch (Exception ignored) { }
+        });
+        box.addView(journal);
 
         if (!AppsTelephone.mainsLibresActif(this)) {
             android.widget.Button mains = new android.widget.Button(this);
@@ -696,6 +740,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void speak(String text) {
+            if (tourVocal) EcouteJarvis.journal("Jarvis : " + text);
             if (ttsReady) {
                 synchronized (MainActivity.this) { parolesEnCours++; }
                 if (tts.speak(text, TextToSpeech.QUEUE_ADD, null, "j" + System.nanoTime()) != TextToSpeech.SUCCESS) paroleFinie();

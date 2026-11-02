@@ -29,13 +29,27 @@ joue 7-memoire 25
 joue 8-rappel 20
 joue 3-ouvre-chrome 20
 adb shell dumpsys activity activities | grep -m1 "topResumedActivity\|mResumedActivity"
-joue 4-ferme-chrome 20
+joue 4-ferme-chrome 25
 adb shell dumpsys activity activities | grep -m1 "topResumedActivity\|mResumedActivity"
+echo "== Chrome encore dans les récentes ?"; adb shell dumpsys activity recents | grep -c "com.android.chrome" || true
+sleep 14
+joue 10-viens 15
+echo "== devant après « viens » :"; adb shell dumpsys activity activities | grep -m1 "topResumedActivity\|mResumedActivity"
+joue 9-tu-peux-partir 12
+echo "== devant après « tu peux partir » :"; adb shell dumpsys activity activities | grep -m1 "topResumedActivity\|mResumedActivity"
+sleep 5
+joue 13-recap 25
+joue 11-raccourci 25
+sleep 14
+joue 12-mode-route 35
+echo "== devant après « mode route » :"; adb shell dumpsys activity activities | grep -m1 "topResumedActivity\|mResumedActivity"
+sleep 14
 sleep 14
 joue 5-sans-jarvis 25
 joue 6-hey-anglais 20
 
 adb shell pidof $P && echo "APPLI VIVANTE" || echo "APPLI MORTE"
+echo "== journal vocal"; adb shell run-as $P cat files/journal-voix.txt || true
 adb logcat -d > logcat.txt
 grep -E "Rappel|JarvisReveil|JarvisPage|JarvisApps|AndroidRuntime|FATAL|sherpa-onnx.*(error|Error)|$P.*has died" logcat.txt > logcat-resume.txt
 cat logcat-resume.txt

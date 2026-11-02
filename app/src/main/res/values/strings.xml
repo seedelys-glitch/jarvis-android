@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mains_libres_description">Permet à Jarvis d\'ouvrir et de fermer tes applis à la voix (« ouvre Waze », « ferme Snapchat », « écran d\'accueil »). Jarvis voit seulement le nom de l\'appli devant toi, jamais ce qu\'il y a dedans.</string>
+    <string name="mains_libres_description">Permet à Jarvis d\'ouvrir et de fermer tes applis à la voix (« ouvre Waze », « ferme Snapchat », « écran d\'accueil »). Pour fermer une appli, Jarvis ouvre l\'écran des applis récentes et fait glisser la bonne carte vers le haut : il lit seulement les noms des applis sur cet écran, jamais ce qu\'il y a dans tes applis.</string>
 </resources>

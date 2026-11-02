@@ -928,6 +928,33 @@ function competences(c) {
   return "";
 }
 
+// ---------- raccourcis : ses propres « skills » (02/11) ----------
+// « quand je dis mode route, ouvre Waze puis ouvre Uber Driver » -> « mode route » fait les deux d'un coup.
+const nRac = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-’]/g, m => m === "-" ? " " : "'")
+  .replace(/^\s*((hey|he|eh|et) )?jarvis\W*/, "").replace(/[.!?,;]+$/, "").replace(/\s+/g, " ").trim();
+function raccourcis() { return lit("raccourcis", {}); }
+function gereRaccourci(text) {
+  const c = nRac(text);
+  let m = /^(?:quand|si|des que) je (?:te )?dis (.+?),? (?:tu )?(?:fais|fait|tu fais) (.+)$/.exec(c)
+       || /^(?:quand|si|des que) je (?:te )?dis (.+?),? ((?:ouvre|ferme|lance|mets|met|dis|reponds|rappelle|note|retiens) .+)$/.exec(c);
+  if (m) {
+    const nom = m[1].replace(/^[«"']\s*|\s*[»"']$/g, "").trim();
+    const actions = m[2].split(/\s*(?:,\s*)?(?:\bpuis\b|\bensuite\b|\bet apres\b|\bet (?=(?:ouvre|ferme|lance|mets|met|dis|reponds|rappelle|note)\b))\s*/).map(x => x.trim()).filter(Boolean);
+    if (nom.split(" ").length > 6 || !actions.length) return null;
+    const r = raccourcis(); r[nom] = actions; ecrit("raccourcis", r);
+    return { dire: "C'est noté. Quand tu me dis « " + nom + " », je fais : " + actions.join(", puis ") + "." };
+  }
+  if (/^(mes raccourcis|quels sont mes raccourcis|liste mes raccourcis)$/.test(c)) {
+    const r = raccourcis(), k = Object.keys(r);
+    return { dire: k.length ? "Tes raccourcis : " + k.map(x => "« " + x + " » : " + r[x].join(", puis ")).join(". ") + "." : "Tu n'as pas encore de raccourci. Dis par exemple : quand je dis mode route, ouvre Waze puis ouvre Uber Driver." };
+  }
+  m = /^(?:oublie|supprime|efface) (?:le )?raccourci (.+)$/.exec(c);
+  if (m) { const r = raccourcis(); const ok = delete r[m[1].replace(/^[«"']\s*|\s*[»"']$/g, "").trim()]; ecrit("raccourcis", r); return { dire: ok ? "Raccourci oublié." : "Je n'ai pas ce raccourci." }; }
+  const r = raccourcis();
+  if (r[c]) return { faire: r[c] };
+  return null;
+}
+
 // ---------- commandes ----------
 const norm = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/^\s*(hey |he )?jarvis\W*/, "");
 async function localCommand(text) {
@@ -956,8 +983,19 @@ async function localCommand(text) {
   return await chatClaude(text);
 }
 
-async function handle(text, voix) {
+async function handle(text, voix, profondeur) {
   text = text.trim(); if (!text) return;
+  const rac = (profondeur || 0) < 2 ? gereRaccourci(text) : null;
+  if (rac && rac.faire) {
+    add(voix ? "🎙 " + text : text, "me");
+    for (const a of rac.faire) await handle(a, voix, (profondeur || 0) + 1);
+    return;
+  }
+  if (rac && rac.dire) {
+    add(voix ? "🎙 " + text : text, "me"); add(rac.dire, "jarvis");
+    if (voix) { console.log("JarvisRepond: " + rac.dire); A.speak(rac.dire); } else say(rac.dire);
+    return;
+  }
   add(voix ? "🎙 " + text : text, "me");
   const wait = add("", "jarvis typing");
   let replies = [];

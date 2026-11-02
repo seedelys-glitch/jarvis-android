@@ -86,7 +86,85 @@ public class EcouteJarvis extends Service {
             "fr/encoder.onnx", "fr/decoder.onnx", "fr/joiner.onnx", "fr/tokens.txt",
             "en/encoder.int8.onnx", "en/decoder.int8.onnx", "en/joiner.int8.onnx", "en/tokens.txt"};
 
-    private enum Etat { VEILLE, COMMANDE, ATTENTE, SUITE }
+    private enum Etat { VEILLE, COMMANDE, ATTENTE, SUITE, APPRENDRE }
+
+    // ------------------------------------------------------------------ ta voix, tes mots, le journal
+    private static final String PREF_VARIANTES = "reveil_variantes", PREF_CORRECTIONS = "corrections";
+    private static final java.util.regex.Pattern APPRENDS = java.util.regex.Pattern.compile(
+            "^(apprends|apprend|apprendre|retiens|ecoute) (ma voix|mon nom|comment je (te )?(dis|parle|t'appelle))|^entraine toi|^apprends a me comprendre");
+    private static final java.util.regex.Pattern RECAP = java.util.regex.Pattern.compile(
+            "^((fais|donne|dis)( moi)? )?(ton |le |mon )?recap( du jour| de la journee)?$|^comment s'est passee? (ta|la) journee$");
+    private static final java.util.regex.Pattern OUBLIE_VOIX = java.util.regex.Pattern.compile("^oublie (ma voix|mes corrections|mes mots)$");
+    private java.util.Map<String, String> corrections = new java.util.LinkedHashMap<>();
+    private static File fichierJournal;
+    private static final ArrayDeque<String> JOURNAL = new ArrayDeque<>();
+
+    /** Journal de la discussion à la voix (reste dans le téléphone ; « Envoyer mon journal » dans les réglages). */
+    static void journal(String ligne) {
+        if (ligne == null || ligne.trim().isEmpty()) return;
+        String l = new java.text.SimpleDateFormat("dd/MM HH:mm:ss", java.util.Locale.FRANCE).format(new java.util.Date())
+                + "  " + ligne.trim();
+        synchronized (JOURNAL) {
+            JOURNAL.addLast(l);
+            while (JOURNAL.size() > 300) JOURNAL.removeFirst();
+            if (fichierJournal != null) {
+                try { java.nio.file.Files.write(fichierJournal.toPath(), String.join("\n", JOURNAL).getBytes("UTF-8")); }
+                catch (Exception ignored) { }
+            }
+        }
+    }
+
+    static String journalTexte(Context c) {
+        File f = new File(c.getFilesDir(), "journal-voix.txt");
+        try { return f.isFile() ? new String(java.nio.file.Files.readAllBytes(f.toPath()), "UTF-8") : ""; }
+        catch (Exception e) { return ""; }
+    }
+
+    private void chargeMaVoix() {
+        SharedPreferences p = getSharedPreferences("jarvis", MODE_PRIVATE);
+        ReveilTexte.reglerPerso(p.getStringSet(PREF_VARIANTES, new java.util.HashSet<>()));
+        corrections = new java.util.LinkedHashMap<>();
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(p.getString(PREF_CORRECTIONS, "{}"));
+            for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) { String k = it.next(); corrections.put(k, o.getString(k)); }
+        } catch (Exception ignored) { }
+    }
+
+    /**
+     * Récap du jour + amélioration toute seule (Ameliore.java) : lu dans le journal vocal. Les nouvelles façons de
+     * dire « Eh Jarvis » trouvées sont ajoutées tout de suite. Fait chaque soir à 22 h (notification) ou à la voix.
+     */
+    private String faireRecap() {
+        String jour = new java.text.SimpleDateFormat("dd/MM", java.util.Locale.FRANCE).format(new java.util.Date());
+        java.util.List<String> lignes;
+        synchronized (JOURNAL) { lignes = new java.util.ArrayList<>(JOURNAL); }
+        SharedPreferences p = getSharedPreferences("jarvis", MODE_PRIVATE);
+        java.util.Set<String> connues = new java.util.LinkedHashSet<>(p.getStringSet(PREF_VARIANTES, new java.util.HashSet<>()));
+        Ameliore.Recap r = Ameliore.analyser(Ameliore.duJour(lignes, jour), connues);
+        if (!r.nouvellesVariantes.isEmpty()) {
+            connues.addAll(r.nouvellesVariantes);
+            while (connues.size() > 25) connues.remove(connues.iterator().next());
+            p.edit().putStringSet(PREF_VARIANTES, new java.util.HashSet<>(connues)).apply();
+            ReveilTexte.reglerPerso(connues);
+        }
+        p.edit().putString("recap_jour", jour).apply();
+        Log.i(TAG, "récap : " + r.texte);
+        journal("récap : " + r.texte);
+        try {
+            Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CANAL) : new Notification.Builder(this);
+            PendingIntent pi = PendingIntent.getActivity(this, 5, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+            Notification n = b.setSmallIcon(R.drawable.ic_jarvis).setContentTitle("Récap du jour de Jarvis")
+                    .setContentText(r.texte).setStyle(new Notification.BigTextStyle().bigText(r.texte))
+                    .setContentIntent(pi).setAutoCancel(true).build();
+            getSystemService(NotificationManager.class).notify(4244, n);
+        } catch (Exception ignored) { }
+        return r.texte;
+    }
+
+    private void gardeCorrections() {
+        getSharedPreferences("jarvis", MODE_PRIVATE).edit()
+                .putString(PREF_CORRECTIONS, new org.json.JSONObject(corrections).toString()).apply();
+    }
 
     // ------------------------------------------------------------------ appelé par l'appli
     private static volatile EcouteJarvis vivant;
@@ -144,6 +222,7 @@ public class EcouteJarvis extends Service {
     // ------------------------------------------------------------------ service
     private volatile boolean marche = false;
     private volatile boolean tourFini = false;
+    private volatile boolean apprendreApres = false;
     private Thread fil;
     private PowerManager.WakeLock verrou;
     private ToneGenerator bip;
@@ -337,6 +416,14 @@ public class EcouteJarvis extends Service {
             return;
         }
         Log.i(TAG, "modèles chargés (anglais : " + (kws != null) + ")");
+        fichierJournal = new File(getFilesDir(), "journal-voix.txt");
+        if (JOURNAL.isEmpty()) {
+            String ancien = journalTexte(this);
+            if (!ancien.isEmpty()) for (String l : ancien.split("\n")) JOURNAL.addLast(l);
+        }
+        chargeMaVoix();
+        java.util.Set<String> apprises = new java.util.LinkedHashSet<>();
+        int compteApprises = 0;
         OnlineStream sFr = asr.createStream("");
         OnlineStream sEn = kws != null ? kws.createStream("") : null;
 
@@ -358,6 +445,12 @@ public class EcouteJarvis extends Service {
             if (now - verifBatterie > 60_000) {
                 verifBatterie = now;
                 raisonPause = batterieFaible() ? "batterie faible : je reprends dès que tu branches le téléphone" : "";
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                String jour = new java.text.SimpleDateFormat("dd/MM", java.util.Locale.FRANCE).format(cal.getTime());
+                if (cal.get(java.util.Calendar.HOUR_OF_DAY) >= 22 && etat == Etat.VEILLE
+                        && !jour.equals(getSharedPreferences("jarvis", MODE_PRIVATE).getString("recap_jour", ""))) {
+                    try { faireRecap(); } catch (Exception e) { Log.w(TAG, "récap impossible", e); }
+                }
             }
             AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
             int mode = am.getMode();
@@ -372,6 +465,18 @@ public class EcouteJarvis extends Service {
                     else if (!raisonPause.isEmpty()) majNotif("En pause (" + raisonPause + ")");
                 }
                 if (etat == Etat.ATTENTE) {
+                    if (tourFini && apprendreApres) {
+                        tourFini = false;
+                        apprendreApres = false;
+                        etat = Etat.APPRENDRE;
+                        etatAffiche = "j'apprends ta voix : dis « Eh Jarvis »";
+                        apprises.clear();
+                        compteApprises = 0;
+                        depuis = System.currentTimeMillis();
+                        asr.reset(sFr);
+                        Log.i(TAG, "apprentissage : j'écoute tes « Eh Jarvis »");
+                        continue;
+                    }
                     if (tourFini) {
                         tourFini = false;
                         etat = Etat.SUITE;
@@ -440,6 +545,7 @@ public class EcouteJarvis extends Service {
                 }
                 if (entendu) {
                     Log.i(TAG, "« Jarvis » entendu : " + asr.getResult(sFr).getText());
+                    journal("réveil sur : « " + asr.getResult(sFr).getText().trim() + " »");
                     noteEntendu(asr.getResult(sFr).getText());
                     reveilA = System.currentTimeMillis();
                     etatAffiche = "je t'écoute, dis ta commande";
@@ -449,12 +555,46 @@ public class EcouteJarvis extends Service {
                     depuis = now;
                     continue;
                 }
-                if (asr.isEndpoint(sFr)) { noteEntendu(asr.getResult(sFr).getText()); asr.reset(sFr); }
+                if (asr.isEndpoint(sFr)) { pasReveille(asr.getResult(sFr).getText()); asr.reset(sFr); }
                 if (now - dernierSon > 2000) {   // plus personne ne parle : on se rendort
-                    noteEntendu(asr.getResult(sFr).getText());
+                    pasReveille(asr.getResult(sFr).getText());
                     ouvert = false;
                     asr.reset(sFr);
                     if (sEn != null) { sEn.release(); sEn = kws.createStream(""); }
+                }
+                continue;
+            }
+
+            if (etat == Etat.APPRENDRE) {
+                sFr.acceptWaveform(x, RATE);
+                while (asr.isReady(sFr)) asr.decode(sFr);
+                if (asr.isEndpoint(sFr)) {
+                    String b = asr.getResult(sFr).getText();
+                    asr.reset(sFr);
+                    if (!b.trim().isEmpty()) {
+                        compteApprises++;
+                        String v = ReveilTexte.varianteApprise(b);
+                        Log.i(TAG, "apprentissage " + compteApprises + " : " + b + (v.isEmpty() ? " (pas gardé)" : ""));
+                        journal("apprentissage : « " + b.trim() + " »");
+                        noteEntendu(b);
+                        if (!v.isEmpty()) apprises.add(v);
+                        bip(true);
+                    }
+                }
+                if (compteApprises >= 5 || now - depuis > 45_000) {
+                    SharedPreferences p = getSharedPreferences("jarvis", MODE_PRIVATE);
+                    java.util.LinkedHashSet<String> toutes = new java.util.LinkedHashSet<>(p.getStringSet(PREF_VARIANTES, new java.util.HashSet<>()));
+                    toutes.addAll(apprises);
+                    while (toutes.size() > 25) toutes.remove(toutes.iterator().next());
+                    p.edit().putStringSet(PREF_VARIANTES, new java.util.HashSet<>(toutes)).apply();
+                    ReveilTexte.reglerPerso(toutes);
+                    String fin = compteApprises == 0 ? "Je ne t'ai pas entendu. Redis « Jarvis, apprends ma voix » quand tu veux."
+                            : "Merci, c'est appris. J'ai retenu " + apprises.size() + " façon" + (apprises.size() > 1 ? "s" : "")
+                            + " dont tu dis « Eh Jarvis ».";
+                    Log.i(TAG, "apprentissage fini : " + apprises);
+                    parler(fin);
+                    etat = Etat.ATTENTE;
+                    depuis = now;
                 }
                 continue;
             }
@@ -468,6 +608,54 @@ public class EcouteJarvis extends Service {
                 // phrase du réveil : ce qui suit « Jarvis » ; phrase suivante : tout (sans « Jarvis » devant)
                 String cmd = premierePhrase ? ReveilTexte.apresReveil(brut) : ReveilTexte.enleveReveil(brut);
                 if (!brut.trim().isEmpty()) premierePhrase = false;
+                if (!cmd.isEmpty() && !corrections.isEmpty()) cmd = ReveilTexte.corriger(cmd, corrections);
+                if (!cmd.isEmpty()) {
+                    String c0 = cmd.replaceAll("[.!?]+$", "").trim();
+                    String reponse = null;
+                    boolean apprendre = false, partir = false;
+                    String[] cor = ReveilTexte.lireCorrection(c0);
+                    if (ReveilTexte.estVenir(c0)) {
+                        montrer();
+                        reponse = "Oui, je suis là.";
+                    } else if (ReveilTexte.estPartir(c0)) {
+                        partir = true;
+                    } else if (APPRENDS.matcher(c0).find()) {
+                        montrer();
+                        apprendre = true;
+                        reponse = "D'accord. Dis « Eh Jarvis » cinq fois, comme d'habitude, avec une petite pause entre chaque. Je fais un bip à chaque fois. Vas-y.";
+                    } else if (cor != null) {
+                        corrections.put(cor[0], cor[1]);
+                        gardeCorrections();
+                        reponse = "D'accord. Quand j'entends « " + cor[0] + " », je comprendrai « " + cor[1] + " ».";
+                    } else if (RECAP.matcher(c0).find()) {
+                        reponse = faireRecap();
+                    } else if (OUBLIE_VOIX.matcher(c0).find()) {
+                        getSharedPreferences("jarvis", MODE_PRIVATE).edit().remove(PREF_VARIANTES).remove(PREF_CORRECTIONS).apply();
+                        chargeMaVoix();
+                        reponse = "C'est oublié. Je repars de zéro pour ta voix et tes mots.";
+                    }
+                    if (partir) {
+                        Log.i(TAG, "fin de la discussion (tu peux partir) : " + cmd);
+                        journal("toi : " + cmd);
+                        journal("Jarvis : À plus tard. (l'appli se remet derrière)");
+                        noteEntendu(brut);
+                        dire("À plus tard.");
+                        etat = Etat.VEILLE;
+                        etatAffiche = "j'écoute";
+                        partir();
+                        continue;
+                    }
+                    if (reponse != null) {
+                        Log.i(TAG, "commande du téléphone : " + cmd);
+                        journal("toi : " + cmd);
+                        noteEntendu(brut);
+                        apprendreApres = apprendre;
+                        parler(reponse);
+                        etat = Etat.ATTENTE;
+                        depuis = now;
+                        continue;
+                    }
+                }
                 if (!cmd.isEmpty() && ReveilTexte.tropCourte(cmd)) {
                     noteEntendu(brut);
                     cmd = "";   // un mot tout seul (« sont ») : ce n'est pas une commande, j'attends la suite
@@ -489,6 +677,7 @@ public class EcouteJarvis extends Service {
                         continue;
                     }
                     Log.i(TAG, "commande : " + cmd);
+                    journal("toi : " + cmd + (brut.trim().equalsIgnoreCase(cmd) ? "" : "   (entendu : « " + brut.trim() + " »)"));
                     noteEntendu(brut);
                     etatAffiche = "commande envoyée";
                     envoyer(cmd);
@@ -531,6 +720,12 @@ public class EcouteJarvis extends Service {
             f.delete();
             return null;
         }
+    }
+
+    /** Phrase courte entendue sans réveil : peut-être un « Eh Jarvis » raté (gardé dans le journal pour régler). */
+    private static void pasReveille(String t) {
+        noteEntendu(t);
+        if (t != null && !t.trim().isEmpty() && t.trim().split("\\s+").length <= 5) journal("pas réveillé : « " + t.trim() + " »");
     }
 
     private static void noteEntendu(String t) {
@@ -586,6 +781,30 @@ public class EcouteJarvis extends Service {
     private void dire(String texte) {
         MainActivity a = MainActivity.vivante();
         if (a != null) a.direVoix(texte);
+    }
+
+    /** Dit une phrase puis l'écoute reprend (12 s pour enchaîner) quand elle est finie. */
+    private void parler(String texte) {
+        journal("Jarvis : " + texte);
+        MainActivity a = MainActivity.vivante();
+        if (a != null) { tourFini = false; a.direPuisEcoute(texte); }
+        else tourFini = true;
+    }
+
+    /** « Jarvis, viens » : l'appli passe devant (par-dessus l'écran verrouillé si besoin). */
+    private void montrer() {
+        Intent i = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_VENIR, true);
+        Context lanceur = MainsLibres.actif != null ? MainsLibres.actif : this;
+        try { lanceur.startActivity(i); } catch (Exception e) { Log.w(TAG, "impossible de passer devant", e); }
+        for (int k = 0; k < 30 && MainActivity.vivante() == null; k++) dors(100);
+    }
+
+    /** « C'est bon, tu peux partir » : l'appli se remet derrière. */
+    private void partir() {
+        MainActivity a = MainActivity.vivante();
+        if (a != null) a.partir();
     }
 
     private void finConversation() {

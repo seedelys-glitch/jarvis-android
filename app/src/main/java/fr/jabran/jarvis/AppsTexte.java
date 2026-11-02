@@ -87,7 +87,7 @@ public final class AppsTexte {
             {"insta", "instagram"}, {"facebook", "facebook"}, {"gmail", "gmail"}, {"mail", "gmail"}};
 
     /** « You Tube », « what's app » -> « youtube », « whatsapp ». */
-    static String compact(String s) {
+    public static String compact(String s) {
         return ReveilTexte.normalise(s).replaceAll("[^a-z0-9]", "");
     }
 

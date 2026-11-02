@@ -86,7 +86,90 @@ public class EcouteJarvis extends Service {
             "fr/encoder.onnx", "fr/decoder.onnx", "fr/joiner.onnx", "fr/tokens.txt",
             "en/encoder.int8.onnx", "en/decoder.int8.onnx", "en/joiner.int8.onnx", "en/tokens.txt"};
 
-    private enum Etat { VEILLE, COMMANDE, ATTENTE, SUITE, APPRENDRE }
+    private enum Etat { VEILLE, COMMANDE, ATTENTE, SUITE, APPRENDRE, GOOGLE }
+
+    // ------------------------------------------------------------------ « Eh Jarvis » -> « Oui ? » -> Google écoute
+    // (02/11, demande de Jabran : savoir quand il écoute + mieux comprendre). Le petit modèle du téléphone ne sert
+    // qu'au mot « Jarvis » ; la commande dite après « Oui ? » est comprise par la reconnaissance de Google (bien
+    // meilleure en français). Si elle n'existe pas ou tombe en panne : le petit modèle comme avant.
+    private android.speech.tts.TextToSpeech voixService;
+    private volatile boolean voixPrete = false;
+    private volatile boolean googleOk = true;
+    private volatile int googleFin = 0;          // 0 en cours, 1 compris, 2 rien entendu, 3 panne
+    private volatile String resultatGoogle = null;
+    private android.speech.SpeechRecognizer reco;
+    private final android.os.Handler principal = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    private void preparerVoix() {
+        try {
+            voixService = new android.speech.tts.TextToSpeech(this, st -> {
+                if (st == android.speech.tts.TextToSpeech.SUCCESS) {
+                    voixService.setLanguage(java.util.Locale.FRANCE);
+                    voixPrete = true;
+                }
+            });
+        } catch (Exception ignored) { }
+    }
+
+    /** Dit « Oui ? » puis laisse Google écouter la commande (le micro du réveil est coupé pendant ce temps). */
+    private void ouiPuisGoogle() {
+        googleFin = 0;
+        resultatGoogle = null;
+        principal.post(() -> {
+            if (voixPrete) {
+                voixService.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                    @Override public void onStart(String id) { }
+                    @Override public void onDone(String id) { principal.post(EcouteJarvis.this::demarrerGoogle); }
+                    @Override public void onError(String id) { principal.post(EcouteJarvis.this::demarrerGoogle); }
+                });
+                if (voixService.speak("Oui ?", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "oui") != android.speech.tts.TextToSpeech.SUCCESS) demarrerGoogle();
+            } else {
+                demarrerGoogle();
+            }
+        });
+    }
+
+    private void demarrerGoogle() {
+        try {
+            if (reco != null) { reco.destroy(); reco = null; }
+            reco = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+            reco.setRecognitionListener(new android.speech.RecognitionListener() {
+                @Override public void onReadyForSpeech(android.os.Bundle b) { etatAffiche = "je t'écoute (dis ta commande)"; }
+                @Override public void onBeginningOfSpeech() { }
+                @Override public void onRmsChanged(float v) { }
+                @Override public void onBufferReceived(byte[] b) { }
+                @Override public void onEndOfSpeech() { }
+                @Override public void onPartialResults(android.os.Bundle b) { }
+                @Override public void onEvent(int t, android.os.Bundle b) { }
+                @Override public void onResults(android.os.Bundle b) {
+                    java.util.ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                    String t = r != null && !r.isEmpty() ? r.get(0) : "";
+                    resultatGoogle = t;
+                    googleFin = t.trim().isEmpty() ? 2 : 1;
+                }
+                @Override public void onError(int e) {
+                    Log.i(TAG, "Google : erreur " + e);
+                    googleFin = (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) ? 2 : 3;
+                }
+            });
+            Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+            reco.startListening(i);
+        } catch (Throwable e) {
+            Log.w(TAG, "Google indisponible", e);
+            googleFin = 3;
+        }
+    }
+
+    private void arreterGoogle() {
+        principal.post(() -> {
+            try { if (reco != null) { reco.destroy(); reco = null; } } catch (Exception ignored) { }
+        });
+    }
 
     // ------------------------------------------------------------------ ta voix, tes mots, le journal
     private static final String PREF_VARIANTES = "reveil_variantes", PREF_CORRECTIONS = "corrections";
@@ -246,6 +329,7 @@ public class EcouteJarvis extends Service {
             return;
         }
         vivant = this;
+        preparerVoix();
         try { bip = new ToneGenerator(AudioManager.STREAM_MUSIC, 80); } catch (Exception ignored) { }
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         verrou = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "jarvis:ecoute");
@@ -273,6 +357,8 @@ public class EcouteJarvis extends Service {
         if (fil != null) fil.interrupt();
         if (verrou != null && verrou.isHeld()) verrou.release();
         if (bip != null) bip.release();
+        arreterGoogle();
+        if (voixService != null) voixService.shutdown();
         super.onDestroy();
     }
 
@@ -435,6 +521,8 @@ public class EcouteJarvis extends Service {
         boolean ouvert = false, pause = false;
         Etat etat = Etat.VEILLE;
         boolean premierePhrase = false;   // la phrase qui contient « Jarvis »
+        boolean ouiDit = false;           // « Oui ? » déjà dit pour ce réveil
+        String injecte = null;            // commande comprise par Google
         long depuis = 0;
         String raisonPause = "";
 
@@ -456,13 +544,38 @@ public class EcouteJarvis extends Service {
             int mode = am.getMode();
             boolean enAppel = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
                     || mode == AudioManager.MODE_RINGTONE;
-            boolean doitPauser = microAppli || enAppel || !raisonPause.isEmpty() || etat == Etat.ATTENTE;
+            boolean doitPauser = microAppli || enAppel || !raisonPause.isEmpty() || etat == Etat.ATTENTE || etat == Etat.GOOGLE;
             if (doitPauser) {
                 if (rec != null) { arreteMicro(rec); rec = null; }
                 if (!pause) {
                     pause = true;
                     if (enAppel) majNotif("En pause pendant ton appel");
                     else if (!raisonPause.isEmpty()) majNotif("En pause (" + raisonPause + ")");
+                }
+                if (etat == Etat.GOOGLE) {
+                    int f = googleFin;
+                    if (f == 1) {
+                        Log.i(TAG, "Google a compris : " + resultatGoogle);
+                        injecte = resultatGoogle;
+                        etat = Etat.COMMANDE;
+                        depuis = now;
+                    } else if (f == 2 || (f == 0 && now - depuis > 20_000)) {
+                        if (f == 0) arreterGoogle();
+                        Log.i(TAG, "Google : rien entendu, je me rendors");
+                        bip(false);
+                        etat = Etat.VEILLE;
+                        etatAffiche = "j'écoute";
+                        ouvert = false;
+                        asr.reset(sFr);
+                        finConversation();
+                    } else if (f == 3) {
+                        googleOk = false;   // pas de Google sur ce téléphone : le petit modèle écoute la commande
+                        Log.i(TAG, "Google en panne : le petit modèle écoute la commande");
+                        etat = Etat.COMMANDE;
+                        depuis = now;
+                    }
+                    dors(100);
+                    continue;
                 }
                 if (etat == Etat.ATTENTE) {
                     if (tourFini && apprendreApres) {
@@ -552,6 +665,7 @@ public class EcouteJarvis extends Service {
                     bip(true);
                     etat = Etat.COMMANDE;
                     premierePhrase = true;
+                    ouiDit = false;
                     depuis = now;
                     continue;
                 }
@@ -602,8 +716,10 @@ public class EcouteJarvis extends Service {
             // COMMANDE (après « Jarvis ») ou SUITE (12 s après la réponse) : on écoute tout
             sFr.acceptWaveform(x, RATE);
             while (asr.isReady(sFr)) asr.decode(sFr);
-            String brut = asr.getResult(sFr).getText();
-            if (asr.isEndpoint(sFr)) {
+            final boolean deGoogle = injecte != null;
+            String brut = deGoogle ? injecte : asr.getResult(sFr).getText();
+            injecte = null;
+            if (deGoogle || asr.isEndpoint(sFr)) {
                 asr.reset(sFr);
                 // phrase du réveil : ce qui suit « Jarvis » ; phrase suivante : tout (sans « Jarvis » devant)
                 String cmd = premierePhrase ? ReveilTexte.apresReveil(brut) : ReveilTexte.enleveReveil(brut);
@@ -656,7 +772,7 @@ public class EcouteJarvis extends Service {
                         continue;
                     }
                 }
-                if (!cmd.isEmpty() && ReveilTexte.tropCourte(cmd)) {
+                if (!cmd.isEmpty() && !deGoogle && ReveilTexte.tropCourte(cmd)) {
                     noteEntendu(brut);
                     cmd = "";   // un mot tout seul (« sont ») : ce n'est pas une commande, j'attends la suite
                     depuis = now;
@@ -686,7 +802,20 @@ public class EcouteJarvis extends Service {
                     tourFini = false;
                     continue;
                 }
-                if (!brut.trim().isEmpty() && etat == Etat.COMMANDE) depuis = now;   // « Jarvis » seul : j'attends la suite
+                if (!brut.trim().isEmpty() && etat == Etat.COMMANDE) {   // « Jarvis » seul : « Oui ? » et j'attends la suite
+                    depuis = now;
+                    if (!ouiDit) {
+                        ouiDit = true;
+                        journal("Jarvis : Oui ?");
+                        if (essai == null && googleOk && android.speech.SpeechRecognizer.isRecognitionAvailable(this)) {
+                            etat = Etat.GOOGLE;
+                            etatAffiche = "oui ? (dis ta commande)";
+                            ouiPuisGoogle();
+                            continue;
+                        }
+                        principal.post(() -> { if (voixPrete) voixService.speak("Oui ?", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "oui"); });
+                    }
+                }
             }
             long delai = etat == Etat.COMMANDE ? ReveilTexte.ATTENTE_COMMANDE_MS : ReveilTexte.SUITE_MS;
             if (now - depuis > delai && brut.trim().isEmpty() && now - dernierSon > 1000) {

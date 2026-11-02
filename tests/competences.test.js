@@ -7,7 +7,7 @@ const store = {};
 global.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
 const rappels = [];
 global.A = { rappel: (ms, q) => rappels.push([ms, q]), appsTel: t => t === "ouvre spotify" ? "J'ouvre Spotify." : "" };
-eval(s.slice(a, b) + s.slice(s.indexOf("function faits()"), s.indexOf("async function chatClaude")) + s.slice(c1, c2) + "; global.competences = competences; global.dureeMs = dureeMs; global.gereRaccourci = gereRaccourci;");
+eval(s.slice(a, b) + s.slice(s.indexOf("function faits()"), s.indexOf("async function chatClaude")) + s.slice(c1, c2) + "; global.competences = competences; global.dureeMs = dureeMs; global.gereRaccourci = gereRaccourci; global.decoupe = decoupe;");
 let ok = 0, ko = 0;
 const eq = (g, w, what) => { if (g === w) ok++; else { ko++; console.log("RATE", what, ":", JSON.stringify(g), "au lieu de", JSON.stringify(w)); } };
 const norm = t => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -43,5 +43,9 @@ eq(gereRaccourci("oublie le raccourci bonne nuit").dire, "Raccourci oublié.", "
 eq(gereRaccourci("bonne nuit"), null, "oublié pour de vrai");
 eq(gereRaccourci("quand tu entends wase, c'est waze"), null, "pas un raccourci (correction)");
 eq(gereRaccourci("ouvre waze"), null, "commande normale");
+eq(JSON.stringify(decoupe("ferme Spotify et ouvre Waze")), JSON.stringify(["ferme spotify", "ouvre waze"]), "2 ordres");
+eq(JSON.stringify(decoupe("ouvre Waze puis mets de la musique, ensuite ferme YouTube")), JSON.stringify(["ouvre waze", "mets de la musique", "ferme youtube"]), "3 ordres");
+eq(JSON.stringify(decoupe("dis-moi le prix du gold et de l'argent")), JSON.stringify(["dis-moi le prix du gold et de l'argent"]), "pas découpé");
+eq(JSON.stringify(decoupe("quand je dis mode route, ouvre Waze puis ouvre Uber")).length > 0 && decoupe("quand je dis mode route, ouvre Waze puis ouvre Uber").length, 1, "raccourci pas découpé");
 console.log(ok + " réussis, " + ko + " ratés");
 process.exit(ko ? 1 : 0);

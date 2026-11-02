@@ -30,6 +30,15 @@ public class AppsTexteTest {
         demande("Ai-je à revi? Ouvre chrome", AppsTexte.OUVRIR, "chrome");
         demande("eh harvy, ferme Snapchat", AppsTexte.FERMER, "snapchat");
         rien("et après on ira manger");
+        demande("t'enlèves Spotify", AppsTexte.FERMER, "spotify");
+        demande("t'ouvres spotifoy", AppsTexte.OUVRIR, "spotifoy");
+        demande("enlève YouTube s'il te plaît", AppsTexte.FERMER, "youtube");
+        demande("ferme youtube trading vie, il te plait", AppsTexte.FERMER, "youtube trading vie");
+        demande("musique suivante", AppsTexte.SUIVANT, "");
+        demande("chanson suivante stp", AppsTexte.SUIVANT, "");
+        demande("mets pause", AppsTexte.PAUSE, "");
+        demande("reprends la musique", AppsTexte.LECTURE, "");
+        demande("musique précédente", AppsTexte.PRECEDENT, "");
         rien("ouvre YouTube sur le PC");
         rien("ferme la page YouTube sur l'écran de gauche");
         rien("c'est quoi le prix du gold");
@@ -47,6 +56,7 @@ public class AppsTexteTest {
         vrai(apps.get(AppsTexte.trouver("trading view", apps)).equals("TradingView"), "trading view");
         vrai(apps.get(AppsTexte.trouver("snap", apps)).equals("Snapchat"), "snap");
         vrai(apps.get(AppsTexte.trouver("spotifi", apps)).equals("Spotify"), "spotifi (mal entendu)");
+        vrai(apps.get(AppsTexte.trouver("spotifoy", apps)).equals("Spotify"), "spotifoy (mal entendu)");
         vrai(apps.get(AppsTexte.trouver("caméra", apps)).equals("Appareil photo"), "caméra");
         vrai(apps.get(AppsTexte.trouver("sms", apps)).equals("Messages"), "sms");
         List<String> en = Arrays.asList("Chrome", "Settings", "Phone");

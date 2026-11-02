@@ -71,6 +71,12 @@ public class ReveilTexteTest {
         tab.put("wase", "waze");
         eq(ReveilTexte.corriger("ouvre wase", tab), "ouvre waze", "correction appliquée");
         eq(ReveilTexte.corriger("ouvre wasemaker", tab), "ouvre wasemaker", "mot entier seulement");
+        eq(ReveilTexte.enleveReveil("Et je revisse, t'enlèves Spotify"), "t'enleves spotify", "google : et je revisse");
+        eq(ReveilTexte.enleveReveil("ok, j'enrevisse musique suivante"), "musique suivante", "j'enrevisse");
+        eq(ReveilTexte.enleveReveil("ok j'en revisse musique suivante"), "musique suivante", "j'en revisse");
+        eq(ReveilTexte.enleveReveil("ai jarisse ouvre waze"), "ouvre waze", "ai jarisse");
+        eq(ReveilTexte.enleveReveil("je revisse"), "", "je revisse seul = Jarvis seul");
+        eq(ReveilTexte.enleveReveil("ouvre waze"), "ouvre waze", "commande normale");
         vrai(ReveilTexte.estFin("Merci."), "fin merci");
         vrai(ReveilTexte.estFin("ok merci"), "fin ok merci");
         vrai(ReveilTexte.estFin("C’est tout"), "fin c'est tout");

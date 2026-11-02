@@ -177,7 +177,10 @@ public class MainsLibres extends AccessibilityService {
                 }
             }
         }
-        if (journal) Log.i("JarvisApps", "écran des récentes (" + racines.size() + " fenêtres) : " + vus);
+        if (journal) {
+            Log.i("JarvisApps", "écran des récentes (" + racines.size() + " fenêtres) : " + vus);
+            EcouteJarvis.journal("récentes, ce que je vois : " + vus);
+        }
         return null;
     }
 

@@ -97,6 +97,7 @@ public class EcouteJarvis extends Service {
     private volatile boolean googleOk = true;
     private volatile int googleFin = 0;          // 0 en cours, 1 compris, 2 rien entendu, 3 panne
     private volatile String resultatGoogle = null;
+    private volatile boolean googleSuite = false;   // Google écoute la suite d'une discussion (pas après « Oui ? »)
     private android.speech.SpeechRecognizer reco;
     private final android.os.Handler principal = new android.os.Handler(android.os.Looper.getMainLooper());
 
@@ -113,6 +114,7 @@ public class EcouteJarvis extends Service {
 
     /** Dit « Oui ? » puis laisse Google écouter la commande (le micro du réveil est coupé pendant ce temps). */
     private void ouiPuisGoogle() {
+        googleSuite = false;
         googleFin = 0;
         resultatGoogle = null;
         principal.post(() -> {
@@ -353,6 +355,7 @@ public class EcouteJarvis extends Service {
     @Override
     public void onDestroy() {
         marche = false;
+        focusMusique(false);
         if (vivant == this) vivant = null;
         if (fil != null) fil.interrupt();
         if (verrou != null && verrou.isHeld()) verrou.release();
@@ -517,11 +520,12 @@ public class EcouteJarvis extends Service {
         short[] pcm = new short[BLOC];
         ArrayDeque<float[]> avant = new ArrayDeque<>();   // 0,6 s gardées pour ne pas couper le début du mot
         double fond = 300;                                 // bruit de fond (s'adapte tout seul)
-        long dernierSon = 0, verifBatterie = 0;
+        long dernierSon = 0, verifBatterie = 0, verifMusique = 0;
         boolean ouvert = false, pause = false;
         Etat etat = Etat.VEILLE;
         boolean premierePhrase = false;   // la phrase qui contient « Jarvis »
         boolean ouiDit = false;           // « Oui ? » déjà dit pour ce réveil
+        int relanceGoogle = 0;
         String injecte = null;            // commande comprise par Google
         long depuis = 0;
         String raisonPause = "";
@@ -529,6 +533,12 @@ public class EcouteJarvis extends Service {
         majNotif("Dis « Eh Jarvis » pour me parler");
         while (marche) {
             long now = System.currentTimeMillis();
+            focusMusique(etat != Etat.VEILLE);
+            if (rec != null && etat == Etat.VEILLE && now - verifMusique > 2000) {
+                verifMusique = now;
+                boolean m = ((AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
+                if (m != micAntiEcho) { arreteMicro(rec); rec = null; }   // rouvert avec la bonne source juste après
+            }
             // --- pauses : appel téléphonique, micro de l'appli, batterie faible
             if (now - verifBatterie > 60_000) {
                 verifBatterie = now;
@@ -557,11 +567,12 @@ public class EcouteJarvis extends Service {
                     if (f == 1) {
                         Log.i(TAG, "Google a compris : " + resultatGoogle);
                         injecte = resultatGoogle;
-                        etat = Etat.COMMANDE;
+                        etat = googleSuite ? Etat.SUITE : Etat.COMMANDE;
                         depuis = now;
                     } else if (f == 2 || (f == 0 && now - depuis > 20_000)) {
                         if (f == 0) arreterGoogle();
                         Log.i(TAG, "Google : rien entendu, je me rendors");
+                        if (!googleSuite) journal("Google n'a rien entendu après « Oui ? »");
                         bip(false);
                         etat = Etat.VEILLE;
                         etatAffiche = "j'écoute";
@@ -569,9 +580,10 @@ public class EcouteJarvis extends Service {
                         asr.reset(sFr);
                         finConversation();
                     } else if (f == 3) {
+                        journal("reconnaissance de Google en panne : je reprends le petit modèle");
                         googleOk = false;   // pas de Google sur ce téléphone : le petit modèle écoute la commande
                         Log.i(TAG, "Google en panne : le petit modèle écoute la commande");
-                        etat = Etat.COMMANDE;
+                        etat = googleSuite ? Etat.SUITE : Etat.COMMANDE;
                         depuis = now;
                     }
                     dors(100);
@@ -592,10 +604,21 @@ public class EcouteJarvis extends Service {
                     }
                     if (tourFini) {
                         tourFini = false;
-                        etat = Etat.SUITE;
-                        Log.i(TAG, "réponse dite : 12 s pour enchaîner sans redire « Jarvis »");
                         depuis = System.currentTimeMillis();
                         asr.reset(sFr);
+                        if (essai == null && googleOk && android.speech.SpeechRecognizer.isRecognitionAvailable(this)) {
+                            // la suite de la discussion est écoutée par Google aussi (le 2e ordre était mal compris)
+                            etat = Etat.GOOGLE;
+                            googleSuite = true;
+                            googleFin = 0;
+                            resultatGoogle = null;
+                            etatAffiche = "je t'écoute encore (dis la suite ou « merci »)";
+                            principal.post(this::demarrerGoogle);
+                            Log.i(TAG, "réponse dite : Google écoute la suite");
+                            continue;
+                        }
+                        etat = Etat.SUITE;
+                        Log.i(TAG, "réponse dite : 12 s pour enchaîner sans redire « Jarvis »");
                         continue;
                     }
                     if (now - depuis > 90_000) { etat = Etat.VEILLE; finConversation(); continue; }
@@ -772,6 +795,18 @@ public class EcouteJarvis extends Service {
                         continue;
                     }
                 }
+                if (cmd.isEmpty() && deGoogle && relanceGoogle < 1) {
+                    // Google n'a entendu que « Jarvis » (« et je revisse ») : il réécoute une fois
+                    relanceGoogle++;
+                    journal("Google n'a entendu que « " + brut + " » : je réécoute");
+                    etat = Etat.GOOGLE;
+                    googleFin = 0;
+                    resultatGoogle = null;
+                    depuis = now;
+                    principal.post(this::demarrerGoogle);
+                    continue;
+                }
+                if (deGoogle) relanceGoogle = 0;
                 if (!cmd.isEmpty() && !deGoogle && ReveilTexte.tropCourte(cmd)) {
                     noteEntendu(brut);
                     cmd = "";   // un mot tout seul (« sont ») : ce n'est pas une commande, j'attends la suite
@@ -862,12 +897,65 @@ public class EcouteJarvis extends Service {
         if (t != null && !t.trim().isEmpty()) dernierEntendu = t.trim();
     }
 
+    private volatile boolean micAntiEcho = false;
+    /** La musique du téléphone jouait quand tu as dit « Eh Jarvis » (elle est en pause pendant qu'on se parle). */
+    static volatile boolean musiqueAvant = false;
+    private final java.util.List<android.media.audiofx.AudioEffect> effets = new java.util.ArrayList<>();
+    private Object demandeFocus;
+    private boolean focusPris = false;
+
+    /**
+     * Musique en route (02/11, « il n'y arrive pas quand il y a de la musique ») : le micro prend la source
+     * « appel » avec l'annulation d'écho du téléphone (elle retire le son que le téléphone joue lui-même) et
+     * le réducteur de bruit ; pendant qu'on se parle, la musique est mise en pause, puis elle reprend.
+     */
+    private void focusMusique(boolean prendre) {
+        if (prendre == focusPris || Build.VERSION.SDK_INT < 26) return;
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        try {
+            if (prendre) {
+                musiqueAvant = am.isMusicActive();
+                android.media.AudioFocusRequest r = new android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                        .setAudioAttributes(new android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_ASSISTANT)
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                        .setOnAudioFocusChangeListener(c -> { }).build();
+                demandeFocus = r;
+                am.requestAudioFocus(r);
+            } else if (demandeFocus != null) {
+                am.abandonAudioFocusRequest((android.media.AudioFocusRequest) demandeFocus);
+            }
+            focusPris = prendre;
+        } catch (Exception e) {
+            Log.w(TAG, "pause de la musique impossible", e);
+            focusPris = prendre;
+        }
+    }
+
     private AudioRecord ouvreMicro() {
         try {
             int min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-            AudioRecord r = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE,
+            boolean musique = ((AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
+            int source = musique ? MediaRecorder.AudioSource.VOICE_COMMUNICATION : MediaRecorder.AudioSource.VOICE_RECOGNITION;
+            AudioRecord r = new AudioRecord(source, RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(min, BLOC * 2 * 4));
             if (r.getState() != AudioRecord.STATE_INITIALIZED) { r.release(); return null; }
+            micAntiEcho = musique;
+            if (musique) {
+                try {
+                    for (android.media.audiofx.AudioEffect fx : effets) fx.release();
+                    effets.clear();
+                    if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
+                        android.media.audiofx.AudioEffect fx = android.media.audiofx.AcousticEchoCanceler.create(r.getAudioSessionId());
+                        if (fx != null) { fx.setEnabled(true); effets.add(fx); }
+                    }
+                    if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                        android.media.audiofx.AudioEffect fx = android.media.audiofx.NoiseSuppressor.create(r.getAudioSessionId());
+                        if (fx != null) { fx.setEnabled(true); effets.add(fx); }
+                    }
+                } catch (Exception ignored) { }
+                Log.i(TAG, "musique en route : micro avec annulation d'écho");
+            }
             r.startRecording();
             return r;
         } catch (SecurityException e) {

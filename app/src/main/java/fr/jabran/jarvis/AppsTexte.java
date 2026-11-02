@@ -13,7 +13,8 @@ public final class AppsTexte {
 
     private AppsTexte() { }
 
-    public static final int OUVRIR = 1, FERMER = 2, ACCUEIL = 3, RETOUR = 4;
+    public static final int OUVRIR = 1, FERMER = 2, ACCUEIL = 3, RETOUR = 4,
+            SUIVANT = 5, PRECEDENT = 6, PAUSE = 7, LECTURE = 8;
 
     /** Ce que la phrase demande : action + nom d'appli dit (null = pas pour le téléphone). */
     public static final class Demande {
@@ -25,15 +26,24 @@ public final class AppsTexte {
     private static final Pattern PC = Pattern.compile("\\b(sur|dans) (le|mon|l') ?(pc|ordi|ordinateur|ecran)\\b");
     private static final Pattern TEL = Pattern.compile("\\s+(sur|dans) (le|mon) (tel|telephone|portable|phone)$");
     private static final Pattern OUVRE = Pattern.compile(
-            "^(ouvre|ouvrir|ouvres|lance|lancer|demarre|demarrer|affiche|va sur|vas sur|mets|met)( moi)? (.+)$");
+            "^(?:tu |t')?(ouvre|ouvrir|ouvres|lance|lancer|lances|demarre|demarrer|affiche|va sur|vas sur|mets|met)( moi)? (.+)$");
     private static final Pattern FERME = Pattern.compile(
-            "^(ferme|fermer|fermes|quitte|quitter|arrete|tue|kill|eteins)( moi)? (.+)$");
+            "^(?:tu |t')?(ferme|fermer|fermes|quitte|quitter|quittes|arrete|tue|kill|eteins|enleve|enleves|enlever|retire|retires|vire|vires|degage)( moi)? (.+)$");
     /** « Ai-je à revi ? Ouvre Chrome » : un « Eh Jarvis » abîmé devant l'ordre (jusqu'à 4 mots). */
     private static final Pattern DEBUT_ABIME = Pattern.compile("^(hey|he|eh|et|ai|euh)\\b[^,.!?]{0,30}?[,.!?]? (?=(ouvre|ouvrir|lance|demarre|ferme|fermer|quitte)\\b)");
     private static final Pattern ARTICLE = Pattern.compile(
             "^(l'application |l'appli |l'app |application |appli |app |l'|le |la |les |mon |ma |mes |un |une )+");
     private static final Pattern ACCUEIL_RE = Pattern.compile(
             "^(ecran d'accueil|accueil|va (a|sur) l'accueil|retourne (a|sur) l'accueil|ferme (tout|toutes les applis|les applis|les applications))$");
+    // Musique du téléphone (02/11 : « musique suivante » partait au PC)
+    private static final Pattern SUIVANT_RE = Pattern.compile(
+            "^((passe (a )?)?(la )?(musique|chanson|titre|son|morceau|piste) suivante?|suivante?|next|zappe|passe|change de (musique|chanson|son))$");
+    private static final Pattern PRECEDENT_RE = Pattern.compile(
+            "^((reviens (a )?)?(la )?(musique|chanson|titre|son|morceau|piste) precedente?|precedente?|reviens en arriere dans la musique)$");
+    private static final Pattern PAUSE_RE = Pattern.compile(
+            "^(pause|mets (la |en )?pause|coupe (la )?(musique|son|zik)|arrete (la )?(musique|zik)|stop (la )?(musique|zik)|mets la musique en pause)$");
+    private static final Pattern LECTURE_RE = Pattern.compile(
+            "^(reprends|reprend|play|lecture|relance (la )?(musique|zik)|remets (la )?(musique|zik)|reprends (la )?(musique|zik))$");
     private static final Pattern RETOUR_RE = Pattern.compile("^(retour|reviens en arriere|page precedente)$");
 
     public static Demande comprendre(String phrase) {
@@ -41,6 +51,13 @@ public final class AppsTexte {
         if (n.isEmpty() || PC.matcher(n).find()) return null;
         if (ACCUEIL_RE.matcher(n).matches()) return new Demande(ACCUEIL, "");
         if (RETOUR_RE.matcher(n).matches()) return new Demande(RETOUR, "");
+        String sansPolitesse = n.replaceAll("( s'il te plait| stp| frere| frerot)$", "");
+        if (SUIVANT_RE.matcher(sansPolitesse).matches()) return new Demande(SUIVANT, "");
+        if (PRECEDENT_RE.matcher(sansPolitesse).matches()) return new Demande(PRECEDENT, "");
+        if (PAUSE_RE.matcher(sansPolitesse).matches()) return new Demande(PAUSE, "");
+        if (LECTURE_RE.matcher(sansPolitesse).matches()) return new Demande(LECTURE, "");
+        n = TEL.matcher(n).replaceFirst("");
+        n = n.replaceAll(",? (s'il te plait|stp|il te plait|frere|frerot)$", "").replaceAll("^(ok|bon|alors),? ", "");
         n = TEL.matcher(n).replaceFirst("");
         n = DEBUT_ABIME.matcher(n).replaceFirst("");
         Matcher m = OUVRE.matcher(n);

@@ -33,6 +33,25 @@ final class AppsTelephone {
         if (d.action == AppsTexte.RETOUR) {
             return MainsLibres.retour() ? "Retour." : null;
         }
+        if (d.action >= AppsTexte.SUIVANT) {
+            // musique du téléphone : seulement si elle joue (sinon la demande part au PC, pour sa musique à lui)
+            android.media.AudioManager au = (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+            boolean joue = au.isMusicActive() || EcouteJarvis.musiqueAvant;
+            if (!joue && d.action != AppsTexte.LECTURE) return null;
+            int touche = d.action == AppsTexte.SUIVANT ? android.view.KeyEvent.KEYCODE_MEDIA_NEXT
+                    : d.action == AppsTexte.PRECEDENT ? android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
+                    : d.action == AppsTexte.PAUSE ? android.view.KeyEvent.KEYCODE_MEDIA_PAUSE : android.view.KeyEvent.KEYCODE_MEDIA_PLAY;
+            // la musique est en pause pendant qu'on se parle : la touche part juste après, quand elle reprend
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    au.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, touche));
+                    au.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, touche));
+                } catch (Exception ignored) { }
+            }, 300);
+            EcouteJarvis.journal("musique : touche " + touche);
+            return d.action == AppsTexte.SUIVANT ? "Musique suivante." : d.action == AppsTexte.PRECEDENT ? "Musique précédente."
+                    : d.action == AppsTexte.PAUSE ? "Pause." : "Je relance la musique.";
+        }
         PackageManager pm = c.getPackageManager();
         List<ResolveInfo> lanceurs = pm.queryIntentActivities(
                 new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0);
@@ -48,6 +67,8 @@ final class AppsTelephone {
         if (i < 0) return null;   // pas une appli du téléphone : on laisse passer (PC, IA)
         String nom = noms.get(i), paquet = paquets.get(i);
         Log.i("JarvisApps", (d.action == AppsTexte.OUVRIR ? "ouvre " : "ferme ") + nom + " (" + paquet + ")");
+        EcouteJarvis.journal("appli : " + (d.action == AppsTexte.OUVRIR ? "ouvre " : "ferme ") + nom + " (" + paquet + "), mains libres "
+                + (MainsLibres.actif != null ? "actif" : "PAS actif") + ", dernière appli : " + MainsLibres.appPrecedente);
         if (d.action == AppsTexte.OUVRIR) {
             Intent l = pm.getLaunchIntentForPackage(paquet);
             if (l == null) return "Je ne sais pas ouvrir " + nom + ".";
@@ -60,10 +81,22 @@ final class AppsTelephone {
                 return "Android m'empêche d'ouvrir " + nom + " : active « Jarvis mains libres » dans les réglages de Jarvis.";
             }
         }
+        // FERMER une appli de musique / vidéo : on coupe d'abord le son (marche même si la carte reste)
+        if (paquet.matches(".*(spotify|deezer|youtube|music|soundcloud|netflix|podcast|twitch|tiktok|radio|mp3|disney|primevideo|qobuz|tidal).*")) {
+            try {
+                android.media.AudioManager au = (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+                if (au.isMusicActive() || EcouteJarvis.musiqueAvant) {
+                    au.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE));
+                    au.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE));
+                    EcouteJarvis.journal("appli : son de " + nom + " coupé");
+                }
+            } catch (Exception ignored) { }
+        }
         // FERMER : par l'écran des applis récentes (la seule vraie fermeture qu'Android permet), sinon arrière-plan
         ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
         final String nomF = nom, paquetF = paquet;
         boolean lance = MainsLibres.fermerParRecents(nom, paquet, ferme -> {
+            EcouteJarvis.journal("appli : fermeture de " + nom + (ferme ? " réussie" : " ratée (carte pas trouvée)"));
             if (!ferme) {
                 try { am.killBackgroundProcesses(paquetF); } catch (Exception ignored) { }
                 MainActivity a = MainActivity.vivante();

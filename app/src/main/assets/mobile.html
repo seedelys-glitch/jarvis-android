@@ -934,6 +934,17 @@ function competences(c) {
 const nRac = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-’]/g, m => m === "-" ? " " : "'")
   .replace(/^\s*((hey|he|eh|et) )?jarvis\W*/, "").replace(/[.!?,;]+$/, "").replace(/\s+/g, " ").trim();
 function raccourcis() { return lit("raccourcis", {}); }
+// Plusieurs ordres d'un coup (02/11) : « ferme Spotify et ouvre Waze », « ouvre Waze puis mets la musique »
+const VERBE = "(?:ouvre|ouvres|ferme|fermes|lance|mets|met|enleve|enleves|coupe|passe|dis|rappelle|note|retiens|reprends|quitte)";
+function decoupe(text) {
+  const c = nRac(text);
+  if (/^(?:quand|si|des que) je /.test(c)) return [text];
+  const parts = c.split(new RegExp("\\s*(?:,\\s*)?(?:\\bpuis\\b|\\bensuite\\b|\\bet apres\\b|\\bet (?=(?:tu |t')?" + VERBE + "\\b))\\s*"))
+    .map(x => x.trim()).filter(Boolean);
+  if (parts.length < 2 || parts.length > 4) return [text];
+  if (!parts.slice(1).every(p => new RegExp("^(?:tu |t')?" + VERBE + "\\b").test(p))) return [text];
+  return parts;
+}
 function gereRaccourci(text) {
   const c = nRac(text);
   let m = /^(?:quand|si|des que) je (?:te )?dis (.+?),? (?:tu )?(?:fais|fait|tu fais) (.+)$/.exec(c)
@@ -991,6 +1002,14 @@ async function handle(text, voix, profondeur) {
     add(voix ? "🎙 " + text : text, "me");
     for (const a of rac.faire) await handle(a, voix, (profondeur || 0) + 1);
     return;
+  }
+  if (!rac && (profondeur || 0) < 2) {
+    const parts = decoupe(text);
+    if (parts.length > 1) {
+      add(voix ? "🎙 " + text : text, "me");
+      for (const p of parts) await handle(p, voix, (profondeur || 0) + 1);
+      return;
+    }
   }
   if (rac && rac.dire) {
     add(voix ? "🎙 " + text : text, "me"); add(rac.dire, "jarvis");

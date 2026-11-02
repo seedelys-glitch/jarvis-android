@@ -109,12 +109,28 @@ public final class ReveilTexte {
     public static String enleveReveil(String texte) {
         String t = nettoie(normalise(texte));
         while (true) {
+            Matcher abime = DEBUT_ABIME.matcher(t);
+            if (abime.lookingAt()) {
+                if (abime.end() >= t.length()) return "";   // « et je revisse » tout seul = « Jarvis » tout seul
+                t = nettoie(t.substring(abime.end()));
+                continue;
+            }
+            int lp = longueurPerso(t);
+            if (lp > 0 && lp < t.length()) { t = nettoie(t.substring(lp)); continue; }
             String u = SALUT.matcher(t).replaceFirst("");
             Matcher m = REVEIL.matcher(u);
             if (!m.lookingAt()) return t;
             t = nettoie(u.substring(m.end()));
         }
     }
+
+    /**
+     * « Jarvis » tel que la dictée de Google l'écrit en début de commande (journal du PC du 02/11 : « et je revisse »
+     * 14 fois, « ai jarisse », « ok, j'enrevisse ») : on l'enlève avant d'exécuter la commande.
+     */
+    private static final Pattern DEBUT_ABIME = Pattern.compile(
+            "^((ok|bon|alors|oui),? )?((et|eh|ai|hey|he|e) )?(je |j'|j |jen? |j'en )?"
+                    + "(revisse|enrevisse|revis|reviss|revise|arvis+e?|harvy|harvey|jarisse|jarris+e?|jervis+e?|revi)(?![a-z])[,.!?]*\\s*");
 
     /** « merci », « c'est tout »… : on arrête de discuter (PC : END_WORDS). */
     public static boolean estFin(String commande) {

@@ -854,6 +854,18 @@ async function contexteDuJour() {
   return txt;
 }
 function faits() { return lit("faits", []); }
+// Une panne d'IA dite simplement (02/11 : « erreur Gemini 503 » ne voulait rien dire pour Jabran)
+function explique(err) {
+  const e = String(err || "");
+  const pourquoi = c => c === "429" ? "trop de demandes" : (c === "503" || c === "500") ? "surchargée" : (c === "401" || c === "403") ? "clé refusée"
+    : c === "400" ? "demande refusée" : c === "0" ? "pas de réseau" : "erreur " + c;
+  const l = [...e.matchAll(/(Groq|Gemini|Grok|DeepSeek|Claude)\s*\((\d+)\)/g)].map(m => m[1] + " : " + pourquoi(m[2]));
+  console.log("JarvisIA: " + e);
+  if (!l.length) return "Les IA en ligne ne répondent pas pour l'instant. Réessaie dans une minute.";
+  const sansGroq = !/Groq/.test(e);
+  return "Les IA ne répondent pas pour l'instant (" + l.join(", ") + "). Réessaie dans une minute." +
+    (sansGroq ? " Astuce : ajoute aussi une clé Groq gratuite dans les réglages, elle prend le relais." : "");
+}
 async function chatClaude(text) {
   if (!A.hasClaude()) return "Ajoute ta clé IA gratuite (Groq ou Gemini) dans les réglages pour discuter avec moi quand le PC est éteint.";
   const g = (GOLD && Date.now() - GOLD.t < 300e3) ? GOLD : null;
@@ -872,7 +884,8 @@ async function chatClaude(text) {
   history.push({ role: "user", content: text });
   history = history.slice(-MEMOIRE_MAX * 2);
   const r = await claude(history, system, 350);
-  let out = r.text || ("Souci avec l'IA : " + String(r.error || "").slice(0, 120));
+  if (!r.text) history.pop();   // question sans réponse : on ne la garde pas (sinon l'IA suivante refuse la discussion)
+  let out = r.text || explique(r.error);
   const act = /^\s*ACTION:\s*(.+)$/i.exec(out || "");
   if (act) {
     const c = act[1].trim();

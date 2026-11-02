@@ -894,7 +894,35 @@ public class MainActivity extends Activity {
     }
 
     /** Appelle une IA par son identifiant. Réponse : {"200", {"text": ...}} ou {code, erreur}. */
+    /**
+     * Discussion propre pour les IA (02/11 : « erreur Gemini » puis plus aucune IA) : une question restée sans
+     * réponse laissait deux messages « user » d'affilée, que Gemini refuse ensuite à chaque fois. On fusionne les
+     * messages qui se suivent du même côté, on commence par l'utilisateur et on finit par lui.
+     */
+    static JSONArray alterne(JSONArray msgs) throws Exception {
+        JSONArray out = new JSONArray();
+        String dernier = "";
+        for (int i = 0; i < msgs.length(); i++) {
+            JSONObject x = msgs.getJSONObject(i);
+            String role = "assistant".equals(x.optString("role")) ? "assistant" : "user";
+            String t = x.optString("content", "").trim();
+            if (t.isEmpty()) continue;
+            if (out.length() == 0 && "assistant".equals(role)) continue;
+            if (role.equals(dernier)) {
+                JSONObject p = out.getJSONObject(out.length() - 1);
+                p.put("content", p.optString("content") + "\n" + t);
+            } else {
+                out.put(new JSONObject().put("role", role).put("content", t));
+                dernier = role;
+            }
+        }
+        while (out.length() > 0 && "assistant".equals(out.getJSONObject(out.length() - 1).optString("role"))) out.remove(out.length() - 1);
+        return out;
+    }
+
     private String[] appelIA(String ia, JSONArray msgs, String system, int maxTokens) throws Exception {
+        msgs = alterne(msgs);
+        if (msgs.length() == 0) return new String[]{"400", "question vide"};
         String k = cle(ia);
         switch (ia) {
             case "gemini": return callGemini(k, msgs, system, maxTokens);
@@ -933,7 +961,8 @@ public class MainActivity extends Activity {
                 return new String[]{"200", new JSONObject().put("text", txt).toString()};
             }
             // clé refusée, plus de crédit, trop de demandes : inutile d'essayer un autre modèle
-            if ("401".equals(r[0]) || "402".equals(r[0]) || "403".equals(r[0]) || "429".equals(r[0])) break;
+            if ("401".equals(r[0]) || "402".equals(r[0]) || "403".equals(r[0])) break;
+            if ("429".equals(r[0]) && i >= 1) break;   // trop de demandes : un 2e modèle au plus
             if (i == essais.size() - 1 && !filtre.isEmpty()) {
                 String[] l = httpCall("GET", base + "/models", h, "", 15000);
                 if ("200".equals(l[0])) {
@@ -979,7 +1008,8 @@ public class MainActivity extends Activity {
                 }
                 return new String[]{"200", new JSONObject().put("text", sb.toString().trim()).toString()};
             }
-            if (!"404".equals(r[0])) break;
+            // modèle absent, surchargé (503), trop de demandes sur ce modèle (429) : on essaie le suivant
+            if (!"404".equals(r[0]) && !"503".equals(r[0]) && !"500".equals(r[0]) && !"429".equals(r[0])) break;
         }
         return r;
     }
@@ -1039,7 +1069,8 @@ public class MainActivity extends Activity {
                         .getJSONObject("message").optString("content", "").trim();
                 return new String[]{"200", new JSONObject().put("text", txt).toString()};
             }
-            if ("401".equals(r[0]) || "402".equals(r[0]) || "403".equals(r[0]) || "429".equals(r[0])) break;
+            if ("401".equals(r[0]) || "402".equals(r[0]) || "403".equals(r[0])) break;
+            if ("429".equals(r[0]) && i >= 1) break;   // trop de demandes : un 2e modèle au plus
             // modèles connus introuvables : on demande à Grok la liste de ses modèles
             if (i == essais.size() - 1) {
                 String[] l = httpCall("GET", "https://api.x.ai/v1/models", h, "", 15000);

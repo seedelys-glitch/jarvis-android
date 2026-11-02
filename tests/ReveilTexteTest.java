@@ -38,6 +38,12 @@ public class ReveilTexteTest {
         eq(ReveilTexte.enleveReveil("c'est quoi le prix"), "c'est quoi le prix", "rien à enlever");
 
         vrai(ReveilTexte.contientReveil("Ai-je Harvy ferme chrome"), "ai-je harvy");
+        vrai(ReveilTexte.contientReveil("Et je revisse"), "et je revisse (S24 de Jabran)");
+        eq(ReveilTexte.apresReveil("Et je revisse, quelle heure est-il ?"), "quelle heure est il", "après et je revisse");
+        vrai(ReveilTexte.contientReveil("Et j'arvis"), "et j'arvis");
+        vrai(ReveilTexte.contientReveil("Eh je revis"), "eh je revis");
+        vrai(!ReveilTexte.contientReveil("et je reviens dans cinq minutes"), "pas : je reviens");
+        vrai(!ReveilTexte.contientReveil("je revisse la roue de la voiture"), "pas : revisse au milieu");
         eq(ReveilTexte.apresReveil("Ai-je Harvy ferme chrome"), "ferme chrome", "après ai-je harvy");
         eq(ReveilTexte.apresReveil("Eh Arvis, quelle heure"), "quelle heure", "eh arvis");
         vrai(!ReveilTexte.contientReveil("j'ai vu Harvey au garage"), "pas harvey au milieu");

@@ -38,7 +38,8 @@ public final class ReveilTexte {
      * début de phrase et après « eh / et / hey / ai (je) », pour ne pas se réveiller sur « Harvey » au milieu d'une phrase.
      */
     private static final Pattern REVEIL_SALUT = Pattern.compile(
-            "^(hey|he|eh|et|ai|ai je|eh je|et je|hey je) (j )?(harv(y|ey|i|is|ie)|arvis|arvi|harbis)(?![a-z])");
+            "^(hey|he|eh|et|ai|e|ai je|eh je|et je|hey je|e je) (j |j'|a )?"
+                    + "(harv(y|ey|i|is|ie)|arvis+e?|arvi|harbis|r[ea]?viss?e?|r[ea]?vi|revy|ervis+e?)(?![a-z])");
 
     private static final Pattern SALUT = Pattern.compile("^(hey|he|eh|et|ai|salam\\w*|salut|bonjour)[\\s,.!?]+");
 

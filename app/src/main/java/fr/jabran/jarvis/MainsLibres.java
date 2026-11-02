@@ -73,7 +73,8 @@ public class MainsLibres extends AccessibilityService {
     private void balayer(String nom, int essai, Fin fin, Handler h) {
         Rect r = trouve(nom);
         if (r == null) {
-            if (essai < 3) { h.postDelayed(() -> balayer(nom, essai + 1, fin, h), 400); return; }
+            if (essai < 4) { h.postDelayed(() -> balayer(nom, essai + 1, fin, h), 500); return; }
+            trouve(nom, true);
             Log.i("JarvisApps", "carte « " + nom + " » introuvable dans les récentes");
             performGlobalAction(GLOBAL_ACTION_HOME);
             fin.fait(false);
@@ -106,24 +107,40 @@ public class MainsLibres extends AccessibilityService {
 
     /** La carte de l'appli dans l'écran des récentes (son nom écrit ou lu), ou null. */
     private Rect trouve(String nom) {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) return null;
-        String cible = AppsTexte.compact(nom);
-        ArrayDeque<AccessibilityNodeInfo> file = new ArrayDeque<>();
-        file.add(root);
-        int vus = 0;
-        while (!file.isEmpty() && vus++ < 600) {
-            AccessibilityNodeInfo n = file.removeFirst();
-            if (n == null) continue;
-            CharSequence t = n.getText(), d = n.getContentDescription();
-            String s = AppsTexte.compact((t != null ? t : "") + " " + (d != null ? d : ""));
-            if (!s.isEmpty() && (s.equals(cible) || s.startsWith(cible) && s.length() <= cible.length() + 12)) {
-                Rect r = new Rect();
-                n.getBoundsInScreen(r);
-                if (r.width() > 0 && r.height() > 0) return r;
+        return trouve(nom, false);
+    }
+
+    private Rect trouve(String nom, boolean journal) {
+        java.util.List<AccessibilityNodeInfo> racines = new java.util.ArrayList<>();
+        AccessibilityNodeInfo actif = getRootInActiveWindow();
+        if (actif != null) racines.add(actif);
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                AccessibilityNodeInfo r = w.getRoot();
+                if (r != null && (r.getPackageName() == null || !getPackageName().contentEquals(r.getPackageName()))) racines.add(r);
             }
-            for (int i = 0; i < n.getChildCount(); i++) file.add(n.getChild(i));
+        } catch (Exception ignored) { }
+        String cible = AppsTexte.compact(nom);
+        StringBuilder vus = new StringBuilder();
+        for (AccessibilityNodeInfo root : racines) {
+            ArrayDeque<AccessibilityNodeInfo> file = new ArrayDeque<>();
+            file.add(root);
+            int n0 = 0;
+            while (!file.isEmpty() && n0++ < 800) {
+                AccessibilityNodeInfo n = file.removeFirst();
+                if (n == null) continue;
+                CharSequence t = n.getText(), d = n.getContentDescription();
+                String s = AppsTexte.compact((t != null ? t : "") + " " + (d != null ? d : ""));
+                if (!s.isEmpty() && vus.length() < 600) vus.append(s).append(" | ");
+                if (!s.isEmpty() && (s.equals(cible) || s.startsWith(cible) && s.length() <= cible.length() + 12)) {
+                    Rect r = new Rect();
+                    n.getBoundsInScreen(r);
+                    if (r.width() > 0 && r.height() > 0) return r;
+                }
+                for (int i = 0; i < n.getChildCount(); i++) file.add(n.getChild(i));
+            }
         }
+        if (journal) Log.i("JarvisApps", "écran des récentes (" + racines.size() + " fenêtres) : " + vus);
         return null;
     }
 

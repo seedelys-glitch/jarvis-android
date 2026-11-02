@@ -49,6 +49,8 @@ public class ReveilTexteTest {
         vrai(!ReveilTexte.contientReveil("j'ai vu Harvey au garage"), "pas harvey au milieu");
         vrai(ReveilTexte.estVenir("viens"), "viens");
         vrai(ReveilTexte.estVenir("Montre-toi"), "montre-toi");
+        vrai(ReveilTexte.estVenir("vient."), "vient (mal écrit)");
+        eq(ReveilTexte.apresReveil("Aijarvie vient."), "vient", "aijarvie vient");
         eq(ReveilTexte.apresReveil("Jarvis viens"), "viens", "jarvis viens");
         vrai(!ReveilTexte.estVenir("viens on va manger"), "pas venir");
         vrai(ReveilTexte.estPartir("C'est bon, tu peux partir"), "partir");

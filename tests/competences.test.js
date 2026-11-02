@@ -35,6 +35,9 @@ eq(rr && rr.dire, "C'est noté. Quand tu me dis « mode route », je fais : ouvr
 eq(JSON.stringify(gereRaccourci("Mode route.").faire), JSON.stringify(["ouvre waze", "ouvre uber driver"]), "raccourci joué");
 rr = gereRaccourci("quand je te dis bonne nuit, tu fais mets le minuteur 8 heures et ferme youtube");
 eq(JSON.stringify(gereRaccourci("bonne nuit").faire), JSON.stringify(["mets le minuteur 8 heures", "ferme youtube"]), "raccourci 2");
+rr = gereRaccourci("quand je dis mode route, ouvre chrome puis j'ouvre les parametres");
+eq(JSON.stringify(gereRaccourci("mode route").faire), JSON.stringify(["ouvre chrome", "ouvre les parametres"]), "j'ouvre -> ouvre");
+gereRaccourci("quand je dis mode route, ouvre Waze puis ouvre Uber Driver");
 eq(gereRaccourci("mes raccourcis").dire.startsWith("Tes raccourcis : « mode route »"), true, "liste");
 eq(gereRaccourci("oublie le raccourci bonne nuit").dire, "Raccourci oublié.", "oubli");
 eq(gereRaccourci("bonne nuit"), null, "oublié pour de vrai");

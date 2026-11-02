@@ -133,7 +133,7 @@ public final class ReveilTexte {
 
     // ------------------------------------------------------------------ « viens » / « tu peux partir »
     private static final Pattern VENIR = Pattern.compile(
-            "^(viens|viens ici|viens voir|reviens|montre toi|ouvre toi|affiche toi|apparais|t'es ou|tu es ou|"
+            "^(vien[st]?|vien[st]? ici|vien[st]? voir|revien[st]?|montre toi|ouvre toi|affiche toi|apparais|t'es ou|tu es ou|"
                     + "ouvre l'appli|ouvre l'application|ouvre jarvis|reveille toi|j'ai besoin de toi)( stp| s'il te plait)?$");
     private static final Pattern PARTIR = Pattern.compile(
             "(tu peux (partir|y aller|disparaitre|te cacher|t'en aller|te fermer|fermer)|va t'en|vas y tu peux|cache toi|"

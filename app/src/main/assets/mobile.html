@@ -940,7 +940,7 @@ function gereRaccourci(text) {
        || /^(?:quand|si|des que) je (?:te )?dis (.+?),? ((?:ouvre|ferme|lance|mets|met|dis|reponds|rappelle|note|retiens) .+)$/.exec(c);
   if (m) {
     const nom = m[1].replace(/^[«"']\s*|\s*[»"']$/g, "").trim();
-    const actions = m[2].split(/\s*(?:,\s*)?(?:\bpuis\b|\bensuite\b|\bet apres\b|\bet (?=(?:ouvre|ferme|lance|mets|met|dis|reponds|rappelle|note)\b))\s*/).map(x => x.trim()).filter(Boolean);
+    const actions = m[2].split(/\s*(?:,\s*)?(?:\bpuis\b|\bensuite\b|\bet apres\b|\bet (?=(?:ouvre|ferme|lance|mets|met|dis|reponds|rappelle|note)\b))\s*/).map(x => x.trim().replace(/^(j'|je |tu )(?=(ouvre|ferme|lance|mets|met|dis|note)\b)/, "")).filter(Boolean);
     if (nom.split(" ").length > 6 || !actions.length) return null;
     const r = raccourcis(); r[nom] = actions; ecrit("raccourcis", r);
     return { dire: "C'est noté. Quand tu me dis « " + nom + " », je fais : " + actions.join(", puis ") + "." };

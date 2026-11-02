@@ -93,7 +93,7 @@ public class EcouteJarvis extends Service {
     private static final java.util.regex.Pattern APPRENDS = java.util.regex.Pattern.compile(
             "^(apprends|apprend|apprendre|retiens|ecoute) (ma voix|mon nom|comment je (te )?(dis|parle|t'appelle))|^entraine toi|^apprends a me comprendre");
     private static final java.util.regex.Pattern RECAP = java.util.regex.Pattern.compile(
-            "^((fais|donne|dis)( moi)? )?(ton |le |mon )?recap( du jour| de la journee)?$|^comment s'est passee? (ta|la) journee$");
+            "^((fais|fait|fai|donne|dis)( moi)? )?(ton |le |mon )?recap( du jour| de la journee)?$|^comment s'est passee? (ta|la) journee$");
     private static final java.util.regex.Pattern OUBLIE_VOIX = java.util.regex.Pattern.compile("^oublie (ma voix|mes corrections|mes mots)$");
     private java.util.Map<String, String> corrections = new java.util.LinkedHashMap<>();
     private static File fichierJournal;

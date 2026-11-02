@@ -71,6 +71,16 @@ public class MainsLibres extends AccessibilityService {
     }
 
     private void balayer(String nom, int essai, Fin fin, Handler h) {
+        try {
+            balayer0(nom, essai, fin, h);
+        } catch (Throwable e) {   // jamais de plantage de Jarvis pour une fermeture d'appli
+            Log.w("JarvisApps", "fermeture par les récentes impossible", e);
+            performGlobalAction(GLOBAL_ACTION_HOME);
+            fin.fait(false);
+        }
+    }
+
+    private void balayer0(String nom, int essai, Fin fin, Handler h) {
         Rect r = trouve(nom);
         if (r == null) {
             if (essai < 4) { h.postDelayed(() -> balayer(nom, essai + 1, fin, h), 500); return; }
@@ -137,7 +147,10 @@ public class MainsLibres extends AccessibilityService {
                     n.getBoundsInScreen(r);
                     if (r.width() > 0 && r.height() > 0) return r;
                 }
-                for (int i = 0; i < n.getChildCount(); i++) file.add(n.getChild(i));
+                for (int i = 0; i < n.getChildCount(); i++) {
+                    AccessibilityNodeInfo c = n.getChild(i);
+                    if (c != null) file.add(c);
+                }
             }
         }
         if (journal) Log.i("JarvisApps", "écran des récentes (" + racines.size() + " fenêtres) : " + vus);

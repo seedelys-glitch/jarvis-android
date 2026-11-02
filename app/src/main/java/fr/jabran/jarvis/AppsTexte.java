@@ -83,7 +83,7 @@ public final class AppsTexte {
     private static final String[][] SYNONYMES = {
             {"camera", "appareil photo"}, {"photo", "appareil photo"}, {"photos", "galerie"},
             {"sms", "messages"}, {"texto", "messages"}, {"appel", "telephone"}, {"telephone", "telephone"},
-            {"reglages", "parametres"}, {"parametre", "parametres"}, {"youtubemusique", "youtube music"},
+            {"reglages", "parametres"}, {"parametre", "parametres"}, {"parametres", "settings"}, {"reglages", "settings"}, {"youtubemusique", "youtube music"},
             {"insta", "instagram"}, {"facebook", "facebook"}, {"gmail", "gmail"}, {"mail", "gmail"}};
 
     /** « You Tube », « what's app » -> « youtube », « whatsapp ». */

@@ -49,6 +49,8 @@ public class AppsTexteTest {
         vrai(apps.get(AppsTexte.trouver("spotifi", apps)).equals("Spotify"), "spotifi (mal entendu)");
         vrai(apps.get(AppsTexte.trouver("caméra", apps)).equals("Appareil photo"), "caméra");
         vrai(apps.get(AppsTexte.trouver("sms", apps)).equals("Messages"), "sms");
+        List<String> en = Arrays.asList("Chrome", "Settings", "Phone");
+        vrai(en.get(AppsTexte.trouver("parametres", en)).equals("Settings"), "paramètres -> Settings");
         vrai(AppsTexte.trouver("mes positions", apps) == -1, "positions : pas une appli");
         vrai(AppsTexte.trouver("la musique", apps) == -1, "la musique : pas une appli");
         System.out.println(ok + " réussis, " + ko + " ratés");

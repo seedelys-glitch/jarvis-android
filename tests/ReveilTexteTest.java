@@ -39,6 +39,7 @@ public class ReveilTexteTest {
 
         vrai(ReveilTexte.contientReveil("Ai-je Harvy ferme chrome"), "ai-je harvy");
         vrai(ReveilTexte.contientReveil("Et je revisse"), "et je revisse (S24 de Jabran)");
+        eq(ReveilTexte.apresReveil("Ai-je à revie. Ouvre chrome"), "ouvre chrome", "ai-je à revie");
         eq(ReveilTexte.apresReveil("Et je revisse, quelle heure est-il ?"), "quelle heure est il", "après et je revisse");
         vrai(ReveilTexte.contientReveil("Et j'arvis"), "et j'arvis");
         vrai(ReveilTexte.contientReveil("Eh je revis"), "eh je revis");

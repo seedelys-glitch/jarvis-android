@@ -43,7 +43,7 @@ public final class ReveilTexte {
      */
     private static final Pattern REVEIL_SALUT = Pattern.compile(
             "^(hey|he|eh|et|ai|e|ai je|eh je|et je|hey je|e je) (j |j'|a )?"
-                    + "(harv(y|ey|i|is|ie)|arvis+e?|arvi|harbis|r[ea]?viss?e?|r[ea]?vi|revy|ervis+e?)(?![a-z])");
+                    + "(harv(y|ey|i|is|ie)|arvis+e?|arvi|harbis|r[ea]?viss?e?|r[ea]?vie?|revy|ervis+e?)(?![a-z])");
 
     private static final Pattern SALUT = Pattern.compile("^(hey|he|eh|et|ai|salam\\w*|salut|bonjour)[\\s,.!?]+");
 

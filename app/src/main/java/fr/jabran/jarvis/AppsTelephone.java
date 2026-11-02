@@ -63,7 +63,7 @@ final class AppsTelephone {
         // FERMER : par l'écran des applis récentes (la seule vraie fermeture qu'Android permet), sinon arrière-plan
         ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
         final String nomF = nom, paquetF = paquet;
-        boolean lance = MainsLibres.fermerParRecents(nom, ferme -> {
+        boolean lance = MainsLibres.fermerParRecents(nom, paquet, ferme -> {
             if (!ferme) {
                 try { am.killBackgroundProcesses(paquetF); } catch (Exception ignored) { }
                 MainActivity a = MainActivity.vivante();

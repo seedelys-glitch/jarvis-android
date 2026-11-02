@@ -23,6 +23,7 @@ public class MainsLibres extends AccessibilityService {
 
     static volatile MainsLibres actif;
     static volatile String appDevant = "";
+    static volatile String appPrecedente = "";   // la dernière vraie appli devant toi (pas Jarvis, pas l'accueil)
 
     @Override
     protected void onServiceConnected() {
@@ -34,7 +35,10 @@ public class MainsLibres extends AccessibilityService {
         if (e != null && e.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && e.getPackageName() != null) {
             String p = e.getPackageName().toString();
             // le clavier, la barre de notifications ou l'interface système ne sont pas « l'appli devant toi »
-            if (!p.equals("com.android.systemui") && !p.contains("inputmethod") && !p.contains("honeyboard")) appDevant = p;
+            if (!p.equals("com.android.systemui") && !p.contains("inputmethod") && !p.contains("honeyboard")) {
+                appDevant = p;
+                if (!p.equals(getPackageName()) && !p.contains("launcher") && !p.equals("android")) appPrecedente = p;
+            }
         }
     }
 
@@ -59,20 +63,27 @@ public class MainsLibres extends AccessibilityService {
      * comme toi : écran des applis récentes, on trouve la carte qui porte son nom, on la fait glisser vers le haut,
      * puis retour à l'accueil. Ne lit que l'écran des récentes (noms des applis).
      */
-    static boolean fermerParRecents(String nom, Fin fin) {
+    static boolean fermerParRecents(String nom, String paquet, Fin fin) {
         MainsLibres m = actif;
         if (m == null || Build.VERSION.SDK_INT < 24) return false;
         Handler h = new Handler(Looper.getMainLooper());
-        h.post(() -> {
+        // si c'est la dernière appli que tu utilisais, sa carte est au milieu des récentes (Jarvis passe derrière d'abord)
+        boolean derniere = paquet.equals(appPrecedente);
+        boolean jarvisDevant = m.getPackageName().equals(appDevant);
+        h.postDelayed(() -> {
             if (!m.performGlobalAction(GLOBAL_ACTION_RECENTS)) { fin.fait(false); return; }
-            h.postDelayed(() -> m.balayer(nom, 0, fin, h), 900);
-        });
+            h.postDelayed(() -> m.balayer(nom, derniere, 0, fin, h), 900);
+        }, jarvisDevant ? 700 : 0);
+        if (jarvisDevant && derniere) {
+            MainActivity a = MainActivity.vivante();
+            if (a != null) a.partir();
+        }
         return true;
     }
 
-    private void balayer(String nom, int essai, Fin fin, Handler h) {
+    private void balayer(String nom, boolean milieu, int essai, Fin fin, Handler h) {
         try {
-            balayer0(nom, essai, fin, h);
+            balayer0(nom, milieu, essai, fin, h);
         } catch (Throwable e) {   // jamais de plantage de Jarvis pour une fermeture d'appli
             Log.w("JarvisApps", "fermeture par les récentes impossible", e);
             performGlobalAction(GLOBAL_ACTION_HOME);
@@ -80,17 +91,30 @@ public class MainsLibres extends AccessibilityService {
         }
     }
 
-    private void balayer0(String nom, int essai, Fin fin, Handler h) {
+    private void balayer0(String nom, boolean milieu, int essai, Fin fin, Handler h) {
         Rect r = trouve(nom);
+        int w = getResources().getDisplayMetrics().widthPixels, H = getResources().getDisplayMetrics().heightPixels;
+        if (r == null && milieu && essai >= 2) {
+            // les cartes n'ont pas de nom lisible (certains téléphones) : la dernière appli est la carte du milieu
+            trouve(nom, true);
+            Log.i("JarvisApps", "carte « " + nom + " » sans nom : je glisse la carte du milieu");
+            r = new Rect(w / 2 - 1, (int) (H * 0.18f), w / 2 + 1, (int) (H * 0.20f));
+            final Rect rm = r;
+            glisser(rm, w, H, nom, true, fin, h);
+            return;
+        }
         if (r == null) {
-            if (essai < 4) { h.postDelayed(() -> balayer(nom, essai + 1, fin, h), 500); return; }
+            if (essai < 4) { h.postDelayed(() -> balayer(nom, milieu, essai + 1, fin, h), 500); return; }
             trouve(nom, true);
             Log.i("JarvisApps", "carte « " + nom + " » introuvable dans les récentes");
             performGlobalAction(GLOBAL_ACTION_HOME);
             fin.fait(false);
             return;
         }
-        int w = getResources().getDisplayMetrics().widthPixels, H = getResources().getDisplayMetrics().heightPixels;
+        glisser(r, w, H, nom, false, fin, h);
+    }
+
+    private void glisser(Rect r, int w, int H, String nom, boolean sansNom, Fin fin, Handler h) {
         float x = Math.max(w * 0.15f, Math.min(w * 0.85f, r.centerX()));
         float y0 = Math.min(H * 0.70f, r.bottom + H * 0.22f);
         Path p = new Path();
@@ -101,7 +125,7 @@ public class MainsLibres extends AccessibilityService {
         boolean parti = dispatchGesture(g, new GestureResultCallback() {
             @Override public void onCompleted(GestureDescription d) {
                 h.postDelayed(() -> {
-                    boolean encore = trouve(nom) != null;
+                    boolean encore = !sansNom && trouve(nom) != null;
                     Log.i("JarvisApps", "carte « " + nom + " » glissée : " + (encore ? "encore là" : "fermée"));
                     performGlobalAction(GLOBAL_ACTION_HOME);
                     fin.fait(!encore);

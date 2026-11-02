@@ -26,7 +26,7 @@ public final class AppsTexte {
     private static final Pattern PC = Pattern.compile("\\b(sur|dans) (le|mon|l') ?(pc|ordi|ordinateur|ecran)\\b");
     private static final Pattern TEL = Pattern.compile("\\s+(sur|dans) (le|mon) (tel|telephone|portable|phone)$");
     private static final Pattern OUVRE = Pattern.compile(
-            "^(?:tu |t')?(ouvre|ouvrir|ouvres|lance|lancer|lances|demarre|demarrer|affiche|va sur|vas sur|mets|met)( moi)? (.+)$");
+            "^(?:tu |t')?(ouvre|ouvrir|ouvres|rouvre|lance|lancer|lances|relance|relancer|relances|remets|remet|demarre|demarrer|affiche|va sur|vas sur|mets|met)( moi)? (.+)$");
     private static final Pattern FERME = Pattern.compile(
             "^(?:tu |t')?(ferme|fermer|fermes|quitte|quitter|quittes|arrete|tue|kill|eteins|enleve|enleves|enlever|retire|retires|vire|vires|degage)( moi)? (.+)$");
     /** « Ai-je à revi ? Ouvre Chrome » : un « Eh Jarvis » abîmé devant l'ordre (jusqu'à 4 mots). */
@@ -57,7 +57,8 @@ public final class AppsTexte {
         if (PAUSE_RE.matcher(sansPolitesse).matches()) return new Demande(PAUSE, "");
         if (LECTURE_RE.matcher(sansPolitesse).matches()) return new Demande(LECTURE, "");
         n = TEL.matcher(n).replaceFirst("");
-        n = n.replaceAll(",? (s'il te plait|stp|il te plait|frere|frerot)$", "").replaceAll("^(ok|bon|alors),? ", "");
+        n = n.replaceAll(",? (s'il te plait|stp|il te plait|frere|frerot)$", "")
+                .replaceAll("^((ok|bon|alors|parfait|super|top|d'accord|merci|nickel|c'est bon|vas y)[,.!]? )+", "");
         n = TEL.matcher(n).replaceFirst("");
         n = DEBUT_ABIME.matcher(n).replaceFirst("");
         Matcher m = OUVRE.matcher(n);

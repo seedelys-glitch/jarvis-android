@@ -34,6 +34,7 @@ public class AppsTexteTest {
         demande("t'ouvres spotifoy", AppsTexte.OUVRIR, "spotifoy");
         demande("enlève YouTube s'il te plaît", AppsTexte.FERMER, "youtube");
         demande("ferme youtube trading vie, il te plait", AppsTexte.FERMER, "youtube trading vie");
+        demande("ok, parfait. relance spoothify, il te plait", AppsTexte.OUVRIR, "spoothify");
         demande("musique suivante", AppsTexte.SUIVANT, "");
         demande("chanson suivante stp", AppsTexte.SUIVANT, "");
         demande("mets pause", AppsTexte.PAUSE, "");
@@ -57,6 +58,7 @@ public class AppsTexteTest {
         vrai(apps.get(AppsTexte.trouver("snap", apps)).equals("Snapchat"), "snap");
         vrai(apps.get(AppsTexte.trouver("spotifi", apps)).equals("Spotify"), "spotifi (mal entendu)");
         vrai(apps.get(AppsTexte.trouver("spotifoy", apps)).equals("Spotify"), "spotifoy (mal entendu)");
+        vrai(apps.get(AppsTexte.trouver("spoothify", apps)).equals("Spotify"), "spoothify (mal entendu)");
         vrai(apps.get(AppsTexte.trouver("caméra", apps)).equals("Appareil photo"), "caméra");
         vrai(apps.get(AppsTexte.trouver("sms", apps)).equals("Messages"), "sms");
         List<String> en = Arrays.asList("Chrome", "Settings", "Phone");

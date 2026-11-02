@@ -1053,8 +1053,8 @@ async function handle(text, voix, profondeur) {
     const tel = A.appsTel ? A.appsTel(text) : "";   // « ouvre Waze », « ferme Snapchat » : sur le téléphone
     if (tel) replies = [tel];
     else if (PC || await detectPc()) {
-      // à la voix (souvent au volant) : 25 s max, sinon le téléphone répond lui-même
-      try { const r = await pcApi("/api/cmd", { text }, voix ? 25000 : 0); replies = (r.replies || []).filter(Boolean); if (!replies.length) replies = [r.done ? "C'est fait." : "Je n'ai pas compris."]; }
+      // à la voix (souvent au volant) : 7 s max (demande de Jabran), sinon le téléphone répond lui-même
+      try { const r = await pcApi("/api/cmd", { text }, voix ? 7000 : 0); replies = (r.replies || []).filter(Boolean); if (!replies.length) replies = [r.done ? "C'est fait." : "Je n'ai pas compris."]; }
       catch (e) {
         if (e.message === "code") replies = ["Code incorrect : mets le code à 6 chiffres dans les réglages (devant le PC, dis « Jarvis, code de l'appli »)."];
         else if (e.message === "bloque") replies = ["Trop de codes faux : Jarvis bloque l'appli pendant 15 minutes."];

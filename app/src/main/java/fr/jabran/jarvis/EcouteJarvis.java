@@ -97,7 +97,9 @@ public class EcouteJarvis extends Service {
     private volatile boolean googleOk = true;
     private volatile int googleFin = 0;          // 0 en cours, 1 compris, 2 rien entendu, 3 panne
     private volatile String resultatGoogle = null;
-    private volatile boolean googleSuite = false;   // Google écoute la suite d'une discussion (pas après « Oui ? »)
+    private volatile boolean googleSuite = false;
+    private volatile int erreurGoogle = 0;
+    private int pannesGoogle = 0, relancesSuite = 0;   // Google écoute la suite d'une discussion (pas après « Oui ? »)
     private android.speech.SpeechRecognizer reco;
     private final android.os.Handler principal = new android.os.Handler(android.os.Looper.getMainLooper());
 
@@ -114,6 +116,7 @@ public class EcouteJarvis extends Service {
 
     /** Dit « Oui ? » puis laisse Google écouter la commande (le micro du réveil est coupé pendant ce temps). */
     private void ouiPuisGoogle() {
+        relancesSuite = 0;
         googleSuite = false;
         googleFin = 0;
         resultatGoogle = null;
@@ -151,6 +154,8 @@ public class EcouteJarvis extends Service {
                 }
                 @Override public void onError(int e) {
                     Log.i(TAG, "Google : erreur " + e);
+                    journal("Google : erreur " + e + (googleSuite ? " (suite)" : ""));
+                    erreurGoogle = e;
                     googleFin = (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) ? 2 : 3;
                 }
             });
@@ -565,10 +570,19 @@ public class EcouteJarvis extends Service {
                 if (etat == Etat.GOOGLE) {
                     int f = googleFin;
                     if (f == 1) {
+                        pannesGoogle = 0;
+                        relancesSuite = 0;
                         Log.i(TAG, "Google a compris : " + resultatGoogle);
                         injecte = resultatGoogle;
                         etat = googleSuite ? Etat.SUITE : Etat.COMMANDE;
                         depuis = now;
+                    } else if ((f == 2 || f == 3) && relancesSuite < 2 && now - depuis < 4000) {
+                        // erreur tout de suite (Google pas prêt, occupé) : on relance au lieu d'abandonner la discussion
+                        relancesSuite++;
+                        Log.i(TAG, "Google : erreur rapide " + erreurGoogle + ", je relance l'écoute");
+                        googleFin = 0;
+                        resultatGoogle = null;
+                        principal.postDelayed(this::demarrerGoogle, 300);
                     } else if (f == 2 || (f == 0 && now - depuis > 20_000)) {
                         if (f == 0) arreterGoogle();
                         Log.i(TAG, "Google : rien entendu, je me rendors");
@@ -581,7 +595,7 @@ public class EcouteJarvis extends Service {
                         finConversation();
                     } else if (f == 3) {
                         journal("reconnaissance de Google en panne : je reprends le petit modèle");
-                        googleOk = false;   // pas de Google sur ce téléphone : le petit modèle écoute la commande
+                        if (++pannesGoogle >= 3) googleOk = false;   // Google en panne 3 fois : le petit modèle écoute
                         Log.i(TAG, "Google en panne : le petit modèle écoute la commande");
                         etat = googleSuite ? Etat.SUITE : Etat.COMMANDE;
                         depuis = now;
@@ -610,6 +624,7 @@ public class EcouteJarvis extends Service {
                             // la suite de la discussion est écoutée par Google aussi (le 2e ordre était mal compris)
                             etat = Etat.GOOGLE;
                             googleSuite = true;
+                            relancesSuite = 0;
                             googleFin = 0;
                             resultatGoogle = null;
                             etatAffiche = "je t'écoute encore (dis la suite ou « merci »)";

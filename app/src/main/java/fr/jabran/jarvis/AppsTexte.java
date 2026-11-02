@@ -20,6 +20,7 @@ public final class AppsTexte {
     public static final class Demande {
         public final int action;
         public final String nom;
+        public boolean verbeMets = false;   // « mets … » : souvent autre chose qu'une appli (minuteur, musique…)
         Demande(int action, String nom) { this.action = action; this.nom = nom; }
     }
 
@@ -32,7 +33,7 @@ public final class AppsTexte {
     /** « Ai-je à revi ? Ouvre Chrome » : un « Eh Jarvis » abîmé devant l'ordre (jusqu'à 4 mots). */
     private static final Pattern DEBUT_ABIME = Pattern.compile("^(hey|he|eh|et|ai|euh)\\b[^,.!?]{0,30}?[,.!?]? (?=(ouvre|ouvrir|lance|demarre|ferme|fermer|quitte)\\b)");
     private static final Pattern ARTICLE = Pattern.compile(
-            "^(l'application |l'appli |l'app |application |appli |app |l'|le |la |les |mon |ma |mes |un |une )+");
+            "^(l'application |l'appli |l'app |application |appli |app |la page |page |la fenetre |fenetre |l'onglet |onglet |l'|le |la |les |mon |ma |mes |un |une )+");
     private static final Pattern ACCUEIL_RE = Pattern.compile(
             "^(ecran d'accueil|accueil|va (a|sur) l'accueil|retourne (a|sur) l'accueil|ferme (tout|toutes les applis|les applis|les applications))$");
     // Musique du téléphone (02/11 : « musique suivante » partait au PC)
@@ -70,7 +71,24 @@ public final class AppsTexte {
         }
         String nom = ARTICLE.matcher(m.group(3)).replaceFirst("").trim();
         if (nom.length() < 2 || nom.split(" ").length > 4) return null;
-        return new Demande(action, nom);
+        Demande dm = new Demande(action, nom);
+        dm.verbeMets = m.group(1).startsWith("met");
+        return dm;
+    }
+
+    /**
+     * Ce que Jarvis du PC sait ouvrir lui-même (université, desk, mémoire…) : ces demandes partent au PC.
+     * Tout le reste (« ferme Spotify », « ouvre Waze »), dit au téléphone, agit sur le téléphone (02/11).
+     */
+    private static final Pattern POUR_JARVIS = Pattern.compile(
+            "\\b(universite|desk|chef|salle|bureau|cascade|positions?|ordres?|memoire|agents?|tableau|journal|archiviste|"
+                    + "directeur|veille|ecrans?|mes equipes|dernier projet|projet|camera|oeil|rapport|brief|disposition)\\b");
+
+    /** Demande d'appli à faire sur le téléphone même si l'appli n'est pas trouvée (on ne l'envoie pas au PC). */
+    public static boolean pourLeTelephone(Demande d) {
+        if (d == null) return false;
+        if (d.action != OUVRIR && d.action != FERMER) return true;
+        return !POUR_JARVIS.matcher(d.nom).find() && !d.verbeMets;
     }
 
     /** L'appli dont le nom ressemble le plus à ce qui a été dit, ou -1. */

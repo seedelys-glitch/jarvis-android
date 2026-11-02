@@ -37,7 +37,7 @@ final class AppsTelephone {
             // musique du téléphone : seulement si elle joue (sinon la demande part au PC, pour sa musique à lui)
             android.media.AudioManager au = (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
             boolean joue = au.isMusicActive() || EcouteJarvis.musiqueAvant;
-            if (!joue && d.action != AppsTexte.LECTURE) return null;
+            // dit au téléphone = la musique du téléphone (02/11), même si elle ne joue pas encore
             int touche = d.action == AppsTexte.SUIVANT ? android.view.KeyEvent.KEYCODE_MEDIA_NEXT
                     : d.action == AppsTexte.PRECEDENT ? android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
                     : d.action == AppsTexte.PAUSE ? android.view.KeyEvent.KEYCODE_MEDIA_PAUSE : android.view.KeyEvent.KEYCODE_MEDIA_PLAY;
@@ -64,7 +64,12 @@ final class AppsTelephone {
             paquets.add(p);
         }
         int i = AppsTexte.trouver(d.nom, noms);
-        if (i < 0) return null;   // pas une appli du téléphone : on laisse passer (PC, IA)
+        if (i < 0) {
+            // dit au téléphone = pour le téléphone (02/11) : on ne l'envoie pas au PC, sauf « … sur le PC »
+            if (!AppsTexte.pourLeTelephone(d)) return null;
+            EcouteJarvis.journal("appli : « " + d.nom + " » pas trouvée sur le téléphone");
+            return "Je ne trouve pas « " + d.nom + " » sur ton téléphone. Si c'est sur le PC, dis-moi « sur le PC ».";
+        }
         String nom = noms.get(i), paquet = paquets.get(i);
         Log.i("JarvisApps", (d.action == AppsTexte.OUVRIR ? "ouvre " : "ferme ") + nom + " (" + paquet + ")");
         EcouteJarvis.journal("appli : " + (d.action == AppsTexte.OUVRIR ? "ouvre " : "ferme ") + nom + " (" + paquet + "), mains libres "

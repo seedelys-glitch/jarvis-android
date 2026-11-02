@@ -7,8 +7,8 @@ android {
         applicationId "fr.jabran.jarvis"
         minSdk 26
         targetSdk 34
-        versionCode 34
-        versionName "4.7"
+        versionCode 35
+        versionName "4.8"
         // « Eh Jarvis » : moteur sherpa-onnx seulement pour les téléphones (pas les émulateurs)
         ndk { abiFilters(*((project.findProperty("abis") ?: "arm64-v8a,armeabi-v7a").toString().split(","))) }
     }

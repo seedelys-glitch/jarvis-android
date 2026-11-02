@@ -61,6 +61,11 @@ public class AppsTexteTest {
         vrai(apps.get(AppsTexte.trouver("spoothify", apps)).equals("Spotify"), "spoothify (mal entendu)");
         vrai(apps.get(AppsTexte.trouver("caméra", apps)).equals("Appareil photo"), "caméra");
         vrai(apps.get(AppsTexte.trouver("sms", apps)).equals("Messages"), "sms");
+        vrai(AppsTexte.pourLeTelephone(AppsTexte.comprendre("ferme spotifiiii")), "ferme X inconnu : reste au téléphone");
+        vrai(!AppsTexte.pourLeTelephone(AppsTexte.comprendre("ouvre l'université")), "ouvre l'université : PC");
+        vrai(!AppsTexte.pourLeTelephone(AppsTexte.comprendre("ferme mes positions")), "ferme mes positions : PC");
+        vrai(!AppsTexte.pourLeTelephone(AppsTexte.comprendre("mets le minuteur")), "mets … : pas forcé");
+        vrai(AppsTexte.comprendre("ferme spotify sur le PC") == null, "sur le PC : PC");
         List<String> en = Arrays.asList("Chrome", "Settings", "Phone");
         vrai(en.get(AppsTexte.trouver("parametres", en)).equals("Settings"), "paramètres -> Settings");
         vrai(AppsTexte.trouver("mes positions", apps) == -1, "positions : pas une appli");

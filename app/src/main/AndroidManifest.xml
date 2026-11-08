@@ -49,6 +49,32 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- « Parler à Jarvis » sans ouvrir l'appli : widget, appui long des écouteurs (assistant du téléphone), montre -->
+        <activity
+            android:name=".ParlerJarvis"
+            android:exported="true"
+            android:theme="@style/Invisible"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <receiver
+            android:name=".JarvisWidget"
+            android:label="Jarvis"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_jarvis_info" />
+        </receiver>
         <!-- « Eh Jarvis » : réveil à la voix (micro en continu, notification « Jarvis t'écoute ») -->
         <service
             android:name=".EcouteJarvis"

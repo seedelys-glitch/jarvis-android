@@ -472,6 +472,13 @@ public class MainActivity extends Activity {
             box.addView(ouvrir);
         }
 
+        // Montre / écouteurs : les réponses en notification, avec « Répondre » à la voix (Montre.java)
+        android.widget.CheckBox montre = new android.widget.CheckBox(this);
+        montre.setText("Montre : ses réponses en notification (tu réponds à la voix depuis la montre)");
+        montre.setChecked(Montre.active(this));
+        montre.setPadding(0, 18, 0, 0);
+        box.addView(montre);
+
         // Journal de la discussion à la voix : ce qu'il a entendu et répondu (pour l'améliorer avec Claude)
         android.widget.Button journal = new android.widget.Button(this);
         journal.setText("Envoyer mon journal vocal (ce que Jarvis a entendu et répondu)");
@@ -513,6 +520,7 @@ public class MainActivity extends Activity {
                     ed.putString("ia_pref", sel <= 0 ? "auto" : IA_IDS[sel - 1]);
                     ed.putBoolean(AlertesTradingView.PREF, alertes.isChecked());
                     ed.putBoolean(EcouteJarvis.PREF, reveil.isChecked());
+                    ed.putBoolean(Montre.PREF, montre.isChecked());
                     ed.apply();
                     if (reveil.isChecked()) EcouteJarvis.demarrer(MainActivity.this);
                     else EcouteJarvis.arreter(MainActivity.this);
@@ -757,7 +765,11 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void speak(String text) {
-            if (tourVocal) EcouteJarvis.journal("Jarvis : " + text);
+            if (tourVocal) {
+                EcouteJarvis.journal("Jarvis : " + text);
+                try { JarvisWidget.maj(getApplicationContext(), text); } catch (Exception ignored) { }
+                try { Montre.reponse(getApplicationContext(), text); } catch (Exception ignored) { }
+            }
             if (ttsReady) {
                 synchronized (MainActivity.this) { parolesEnCours++; }
                 if (tts.speak(text, TextToSpeech.QUEUE_ADD, null, "j" + System.nanoTime()) != TextToSpeech.SUCCESS) paroleFinie();

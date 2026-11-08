@@ -280,6 +280,24 @@ public class EcouteJarvis extends Service {
         c.stopService(new Intent(c, EcouteJarvis.class));
     }
 
+    // « Parler à Jarvis » sans ouvrir l'appli : widget, écouteurs (assistant du téléphone), réponse de la montre
+    private static volatile boolean parlerDemande = false;
+    private static volatile String cmdExterne = null;
+
+    /** texte == null : « Oui ? » puis Google écoute ; sinon : ce texte est la commande (dictée sur la montre). */
+    static void parler(Context c, String texte) {
+        if (texte != null && !texte.trim().isEmpty()) cmdExterne = texte.trim(); else parlerDemande = true;
+        if (vivant != null) return;
+        if (c.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return;
+        try {
+            c.getSharedPreferences("jarvis", MODE_PRIVATE).edit().putBoolean(PREF, true).apply();
+            Intent i = new Intent(c, EcouteJarvis.class);
+            if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i); else c.startService(i);
+        } catch (Exception e) {
+            Log.w(TAG, "parler : démarrage impossible", e);
+        }
+    }
+
     static boolean enMarche() { return vivant != null; }
 
     // Ce que l'écoute fait et entend : montré dans l'appli (petite ligne au-dessus de la case de texte)
@@ -538,6 +556,35 @@ public class EcouteJarvis extends Service {
         majNotif("Dis « Eh Jarvis » pour me parler");
         while (marche) {
             long now = System.currentTimeMillis();
+            if ((cmdExterne != null || parlerDemande) && (etat == Etat.VEILLE || etat == Etat.SUITE || etat == Etat.COMMANDE)) {
+                String ce = cmdExterne;
+                cmdExterne = null;
+                parlerDemande = false;
+                reveilA = now;
+                depuis = now;
+                if (ce != null) {
+                    journal("montre : « " + ce + " »");
+                    injecte = ce;
+                    etat = Etat.COMMANDE;
+                    premierePhrase = false;
+                    ouiDit = true;
+                } else {
+                    journal("réveil sur : bouton (widget / écouteurs)");
+                    journal("Jarvis : Oui ?");
+                    ouiDit = true;
+                    premierePhrase = false;
+                    if (essai == null && googleOk && android.speech.SpeechRecognizer.isRecognitionAvailable(this)) {
+                        etat = Etat.GOOGLE;
+                        etatAffiche = "oui ? (dis ta commande)";
+                        ouiPuisGoogle();
+                    } else {
+                        etat = Etat.COMMANDE;
+                        etatAffiche = "je t'écoute, dis ta commande";
+                        principal.post(() -> { if (voixPrete) voixService.speak("Oui ?", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "oui"); });
+                    }
+                }
+                continue;
+            }
             focusMusique(etat != Etat.VEILLE);
             if (rec != null && etat == Etat.VEILLE && now - verifMusique > 2000) {
                 verifMusique = now;

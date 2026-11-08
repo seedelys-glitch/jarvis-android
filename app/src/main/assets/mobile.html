@@ -272,11 +272,12 @@
   .chip:nth-child(5) { animation-delay: .16s; } .chip:nth-child(6) { animation-delay: .2s; } .chip:nth-child(n+7) { animation-delay: .24s; }
   /* onglets du haut : reflet qui passe de temps en temps */
   .camtab { position: relative; overflow: hidden; }
-  .camtab::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
+  .camtab::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; will-change: transform;
     background: linear-gradient(100deg, transparent, rgba(255, 240, 210, .16), transparent); animation: balaye 6s ease-in-out infinite; }
   .camtab.desktab::after { animation-delay: 3s; }
   .camtab.desktab { color: #d9c8ff; border-color: rgba(176, 140, 255, .35); background: linear-gradient(180deg, rgba(176, 140, 255, .12), rgba(176, 140, 255, .03)); }
-  @keyframes balaye { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  /* v5.0 : on fait glisser le reflet (transform) au lieu de changer sa place (left) : plus de recalcul de la page */
+  @keyframes balaye { 0%, 70% { transform: none; } 100% { transform: translateX(475%); } }
   /* actions rapides : chaque icône dans sa pastille de couleur */
   .actions { background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .35)); }
   .actions button .i { width: 40px; height: 32px; padding: 5px 9px; border-radius: 12px; color: var(--acc, var(--or));
@@ -1417,38 +1418,57 @@ window.__app = visible;   // appelé par Android quand l'appli passe devant ou d
 
 // Mes équipes (avec le PC) : un appui = le détail + la phrase pour lui parler, prête dans la case
 let EQUIPES = "";
+const EQUIPE_INFO = {};
+const detailEquipe = q => q.nom + " : " + (q.detail || "") + (q.exemple ? " · dis « " + q.exemple + " »" : "");
 async function refreshEquipes() {
   const box = $("teams");
   if (!PC) {
-    if (EQUIPES !== "-") { box.innerHTML = '<span class="chip muet"><i class="led bad"></i>avec le PC</span>'; $("teamDetail").classList.remove("vu"); EQUIPES = "-"; }
+    if (EQUIPES !== "-") { box.innerHTML = '<span class="chip muet"><i class="led bad"></i>avec le PC</span>'; box.dataset.noms = ""; $("teamDetail").classList.remove("vu"); EQUIPES = "-"; }
     return;
   }
   try {
     const lignes = (await pcApi("/api/equipes", null, 15000)).equipes || [];
     if (!lignes.length) return;
     const sig = JSON.stringify(lignes);
-    if (sig === EQUIPES) return;   // rien n'a changé : on ne redessine pas (pas de clignotement)
+    if (sig === EQUIPES) return;   // rien n'a changé : on ne touche à rien
     EQUIPES = sig;
-    box.textContent = "";
+    // v5.0 : avant, le moindre changement de détail (« depuis 3 min »…) redessinait toutes les puces,
+    // qui rejouaient leur animation d'arrivée : le haut de l'écran « sautait » toutes les 20 s.
+    // Maintenant on ne redessine que si la liste des équipes change ; sinon on met à jour sur place.
+    const noms = lignes.map(q => q.nom).join("|");
+    if (box.dataset.noms !== noms) {
+      box.dataset.noms = noms;
+      box.textContent = "";
+      for (const q of lignes) {
+        const b = document.createElement("button"), led = document.createElement("i");
+        b.type = "button"; b.className = "chip press"; b.dataset.nom = q.nom;
+        led.setAttribute("aria-hidden", "true");
+        b.append(led, q.nom);
+        b.setAttribute("aria-pressed", "false");
+        b.addEventListener("click", () => {
+          const q = EQUIPE_INFO[b.dataset.nom] || {};
+          const deja = b.getAttribute("aria-pressed") === "true";
+          box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
+          $("teamDetail").classList.toggle("vu", !deja);
+          if (deja) return;   // deuxième appui : on referme le détail
+          b.setAttribute("aria-pressed", "true");
+          $("teamDetail").textContent = detailEquipe(q);
+          const debut = (q.exemple || "").split(/[,…]/)[0].trim();
+          if (debut && (q.exemple || "").includes(",")) { $("input").value = debut + ", "; $("input").focus(); }
+        });
+        box.append(b);
+      }
+    }
     for (const q of lignes) {
-      const b = document.createElement("button"), led = document.createElement("i");
-      b.type = "button"; b.className = "chip press";
+      EQUIPE_INFO[q.nom] = q;
+      const b = [...box.querySelectorAll(".chip")].find(c => c.dataset.nom === q.nom);
+      if (!b) continue;
       const etat = q.etat === "on" ? "on" : q.etat === "pause" ? "pause" : "bad";
-      led.className = "led " + etat; led.setAttribute("aria-hidden", "true");
-      b.append(led, q.nom);
+      const led = b.querySelector(".led"), cls = "led " + etat;
+      if (led.className !== cls) led.className = cls;
       b.setAttribute("aria-label", q.nom + ", " + ({ on: "en marche", pause: "en pause", bad: "arrêté" })[etat]);
-      b.setAttribute("aria-pressed", "false");
-      b.addEventListener("click", () => {
-        const deja = b.getAttribute("aria-pressed") === "true";
-        box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
-        $("teamDetail").classList.toggle("vu", !deja);
-        if (deja) return;   // deuxième appui : on referme le détail
-        b.setAttribute("aria-pressed", "true");
-        $("teamDetail").textContent = q.nom + " : " + (q.detail || "") + (q.exemple ? " · dis « " + q.exemple + " »" : "");
-        const debut = (q.exemple || "").split(/[,…]/)[0].trim();
-        if (debut && (q.exemple || "").includes(",")) { $("input").value = debut + ", "; $("input").focus(); }
-      });
-      box.append(b);
+      // détail ouvert sur cette équipe : on change juste le texte (sans refermer ni rouvrir)
+      if (b.getAttribute("aria-pressed") === "true") { const t = detailEquipe(q); if ($("teamDetail").textContent !== t) $("teamDetail").textContent = t; }
     }
   } catch (e) {}
 }

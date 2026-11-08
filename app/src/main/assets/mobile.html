@@ -233,7 +233,11 @@
   :root { --violet: #b08cff; --cyan: #4fd8d0; --bleu: #6aa8ff; --vert: #5cc58c; --rose: #ff6f91; }
   .c-violet { --acc: var(--violet); } .c-or { --acc: var(--or); } .c-cyan { --acc: var(--cyan); }
   .c-vert { --acc: var(--vert); } .c-bleu { --acc: var(--bleu); } .c-rouge { --acc: #ff7a6e; }
-  /* fond : trois lueurs qui dérivent lentement (rouge, or, violet) */
+  /* 4.10 : fond « univers noir » (même que l'écran du PC) : étoiles, voie lactée, nébuleuses rouge et or */
+  html { background: #020103; }
+  body { background: transparent !important; }
+  .univers { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+  /* ancien fond : trois lueurs qui dérivent lentement (remplacé par l'univers) */
   .aurore { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
   .aurore i { position: absolute; width: 70vmax; height: 70vmax; border-radius: 50%; filter: blur(50px); opacity: .5; will-change: transform; }
   .aurore i:nth-child(1) { background: radial-gradient(circle, rgba(227, 36, 43, .9), transparent 62%); left: -30vmax; top: -38vmax; animation: derive1 26s ease-in-out infinite alternate; }
@@ -322,7 +326,7 @@
 </style>
 </head>
 <body class="nopc demarre">
-<div class="aurore" aria-hidden="true"><i></i><i></i><i></i></div>
+<canvas class="univers" id="univers" aria-hidden="true"></canvas>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
@@ -1452,6 +1456,89 @@ async function refreshEquipes() {
     }
   } catch (e) {}
 }
+</script>
+<script>
+// 4.10 : fond « univers noir », le même que l'écran Jarvis du PC.
+// Le ciel (milliers d'étoiles, voie lactée, nébuleuses) est peint une seule fois ;
+// ensuite seules ~70 étoiles scintillent et une étoile filante passe de temps en temps (30 images/s,
+// rien du tout quand l'appli est derrière, pour la batterie).
+(function () {
+  const cv = document.getElementById("univers"); if (!cv) return;
+  const ctx = cv.getContext("2d"), ciel = document.createElement("canvas"), g = ciel.getContext("2d");
+  const REDUIT = matchMedia("(prefers-reduced-motion: reduce)").matches, TAU = Math.PI * 2;
+  let W = 0, H = 0, dpr = 1, actif = true;
+  const sp = document.createElement("canvas"); sp.width = sp.height = 32;
+  { const s = sp.getContext("2d"), gr = s.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(.18, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    s.fillStyle = gr; s.fillRect(0, 0, 32, 32); }
+  function peindre() {
+    dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+    cv.width = ciel.width = Math.round(W * dpr); cv.height = ciel.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const D = Math.hypot(W, H);
+    g.fillStyle = "#020103"; g.fillRect(0, 0, W, H);
+    const neb = (x, y, r, rgb, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(.5, `rgba(${rgb},${a * .35})`); gr.addColorStop(1, `rgba(${rgb},0)`);
+      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); };
+    g.globalCompositeOperation = "lighter";
+    neb(W * .5, -H * .05, D * .45, "110,8,14", .38);    // lueur braise en haut (comme avant)
+    neb(W * .1, H * .35, D * .35, "90,10,40", .2);      // pourpre
+    neb(W * .95, H * .7, D * .4, "120,20,10", .2);      // braise
+    neb(W * .8, H * .2, D * .22, "140,100,40", .12);    // poussière dorée
+    neb(W * .25, H * .95, D * .3, "25,30,90", .14);     // bleu nuit
+    g.save(); g.translate(W / 2, H / 2); g.rotate(-1.05);  // voie lactée en diagonale
+    for (let i = 0; i < 20; i++) { const x = (Math.random() - .5) * D, y = (Math.random() - .5) * W * .16, r = D * (.06 + Math.random() * .1);
+      const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "rgba(150,110,120,.06)"); gr.addColorStop(1, "rgba(150,110,120,0)");
+      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    for (let i = 0; i < 1400; i++) { const x = (Math.random() - .5) * D, y = (Math.random() + Math.random() + Math.random() - 1.5) * W * .11;
+      g.fillStyle = `rgba(235,225,230,${.08 + Math.random() * .3})`; g.fillRect(x, y, 1, 1); }
+    g.restore();
+    const n = Math.round(W * H / 500);
+    for (let i = 0; i < n; i++) { const b = Math.random() ** 3, s = b > .8 ? 1.6 : b > .4 ? 1.2 : .8;
+      const c = Math.random() < .12 ? "255,200,150" : Math.random() < .1 ? "190,210,255" : "240,235,240";
+      g.fillStyle = `rgba(${c},${.12 + b * .75})`; g.fillRect(Math.random() * W, Math.random() * H, s, s); }
+    g.globalCompositeOperation = "source-over";
+    const v = g.createRadialGradient(W / 2, H * .4, Math.min(W, H) * .3, W / 2, H * .4, D * .65);
+    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.6)"); g.fillStyle = v; g.fillRect(0, 0, W, H);
+  }
+  const ASTRES = Array.from({ length: REDUIT ? 25 : 70 }, () => ({ x: Math.random(), y: Math.random(), ph: Math.random() * TAU,
+    f: .4 + Math.random() * 1.6, s: .7 + Math.random() ** 2 * 2 }));
+  let filante = null, prochaine = 0, dernier = 0, derive = 0;
+  function image(t) {
+    if (!actif) return;
+    requestAnimationFrame(image);
+    if (t - dernier < 31) return;
+    const dt = dernier ? Math.min(100, t - dernier) : 16; dernier = t;
+    ctx.drawImage(ciel, 0, 0, W, H);
+    ctx.globalCompositeOperation = "lighter";
+    if (!REDUIT) derive += dt * .0000035;
+    for (const s of ASTRES) {
+      const x = ((s.x + derive) % 1) * W, y = s.y * H;
+      const tw = REDUIT ? .8 : .55 + .45 * Math.sin(t / 1000 * s.f + s.ph), sz = s.s * 6 * (.7 + tw * .5);
+      ctx.globalAlpha = tw * .9; ctx.drawImage(sp, x - sz / 2, y - sz / 2, sz, sz);
+    }
+    ctx.globalAlpha = 1;
+    if (!REDUIT) {
+      if (!prochaine) prochaine = t + 2500;
+      if (!filante && t > prochaine) { const d = Math.random() < .5 ? 1 : -1;
+        filante = { x: W * (.15 + Math.random() * .7), y: H * (.04 + Math.random() * .3), vx: d * W * .0011, vy: H * .00045, t0: t, d: 900 + Math.random() * 500 }; }
+      if (filante) { const p = (t - filante.t0) / filante.d;
+        if (p >= 1) { filante = null; prochaine = t + 6000 + Math.random() * 8000; }
+        else { const e = t - filante.t0, x = filante.x + filante.vx * e, y = filante.y + filante.vy * e, L = 220;
+          const gr = ctx.createLinearGradient(x, y, x - filante.vx * L, y - filante.vy * L);
+          gr.addColorStop(0, `rgba(255,235,200,${Math.sin(p * Math.PI) * .9})`); gr.addColorStop(1, "rgba(255,120,80,0)");
+          ctx.strokeStyle = gr; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - filante.vx * L, y - filante.vy * L); ctx.stroke(); } }
+    }
+    ctx.globalCompositeOperation = "source-over";
+  }
+  function relance(oui) { if (oui && !actif) { actif = true; dernier = 0; requestAnimationFrame(image); } else if (!oui) actif = false; }
+  let attente = 0;
+  addEventListener("resize", () => { clearTimeout(attente); attente = setTimeout(() => { peindre(); ctx.drawImage(ciel, 0, 0, W, H); }, 150); });
+  document.addEventListener("visibilitychange", () => relance(!document.hidden));
+  const avant = window.__app;  // Android prévient quand l'appli passe devant ou derrière
+  window.__app = (oui) => { relance(!!oui); if (avant) avant(oui); };
+  peindre(); requestAnimationFrame(image);
+})();
 </script>
 </body>
 </html>

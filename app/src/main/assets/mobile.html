@@ -167,10 +167,11 @@
   @keyframes onde { from { transform: scale(1); opacity: .9; } to { transform: scale(1.7); opacity: 0; } }
 
   /* feuilles du bas : elles glissent depuis le bas, le fond s'assombrit */
-  .modal { position: fixed; inset: 0; z-index: 5; display: flex; align-items: flex-end; background: rgba(0, 0, 0, .7);
+  /* v5.0 : la feuille ouverte est isolée du reste de la page (elle ne bouge plus quand le fond change) */
+  .modal { position: fixed; inset: 0; z-index: 5; contain: strict; display: flex; align-items: flex-end; background: rgba(0, 0, 0, .7);
     visibility: hidden; opacity: 0; transition: opacity .22s, visibility 0s .26s; }
   .modal.open { visibility: visible; opacity: 1; transition: opacity .22s; }
-  .sheet { width: 100%; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain; background: var(--nuit-2);
+  .sheet { width: 100%; max-height: 88%; overflow-y: auto; overscroll-behavior: contain; background: var(--nuit-2);
     border-top: 1px solid var(--trait); border-radius: 24px 24px 0 0; padding: 8px 18px calc(20px + env(safe-area-inset-bottom));
     transform: translateY(40px); transition: transform .26s var(--doux); box-shadow: 0 -12px 40px rgba(0, 0, 0, .5); }
   .modal.open .sheet { transform: none; }
@@ -191,10 +192,10 @@
   .row button { flex: 1; min-height: 52px; padding: 0 15px; border-radius: 16px; background: rgba(242, 231, 226, .07); font-size: 16px; }
   .row button.or { background: var(--or); color: #140c04; font-weight: 600; }
   .row button.danger { background: var(--braise); color: #fff; }
-  .sheet.cam-sheet { max-height: 94vh; padding-top: 8px; }
+  .sheet.cam-sheet { max-height: 94%; padding-top: 8px; }
   .cam-ecran { position: relative; margin: 0 -18px; background: #000; height: min(72vh, 640px); }
   .cam-ecran iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-  .sheet.desk-sheet { max-height: 94vh; display: flex; flex-direction: column; }
+  .sheet.desk-sheet { max-height: 94%; display: flex; flex-direction: column; }
   .desk-chat { height: min(72vh, 640px); display: flex; }
   .desk-chat > .dk { flex: 1; }
   .news { padding: 14px 0 14px 12px; border-bottom: 1px solid rgba(242, 231, 226, .07); border-left: 3px solid #333; margin-left: -2px; }
@@ -1079,10 +1080,18 @@ window.__voix = async (text) => {
 };
 window.__dire = (text) => { if (text) add(text, "jarvis"); };
 // « Eh Jarvis » : ce que le téléphone entend (pour vérifier et régler), mis à jour chaque seconde
+// v5.0 : avant, cette ligne était réécrite chaque seconde même sans changement, et la page entière
+// se recalculait : la feuille « Toutes les commandes » changeait de taille toutes les secondes.
+// Maintenant : rien n'est touché si le texte est le même, ni quand une feuille est ouverte par-dessus.
+let OREILLE = "";
 function majOreille() {
   const el = $("oreille");
+  if (document.querySelector(".modal.open")) return;
   let e = null;
   try { e = A.ecouteEtat ? JSON.parse(A.ecouteEtat()) : null; } catch (err) {}
+  const sig = e && e.actif ? [e.reveil ? 1 : 0, e.etat, e.entendu || ""].join("|") : "-";
+  if (sig === OREILLE) return;
+  OREILLE = sig;
   if (!e || !e.actif) { el.hidden = true; return; }
   el.hidden = false;
   el.className = "oreille" + (e.reveil ? " reveil" : "");

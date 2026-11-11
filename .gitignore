@@ -6,3 +6,6 @@ local.properties
 *.p12
 *.keystore
 *.jks
+# « Eh Jarvis » : téléchargés par la compilation (trop gros pour git)
+app/libs/
+app/src/main/assets/reveil/

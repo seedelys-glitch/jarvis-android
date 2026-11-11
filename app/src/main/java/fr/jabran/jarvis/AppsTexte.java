@@ -1,0 +1,143 @@
+package fr.jabran.jarvis;
+
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * « Ouvre Waze », « ferme Snapchat », « écran d'accueil » : comprendre la phrase et trouver l'appli
+ * du téléphone (01/11/2026). Aucune dépendance Android : testé tout seul (tests/AppsTexteTest.java).
+ * « … sur le PC » : la phrase part au PC comme avant.
+ */
+public final class AppsTexte {
+
+    private AppsTexte() { }
+
+    public static final int OUVRIR = 1, FERMER = 2, ACCUEIL = 3, RETOUR = 4,
+            SUIVANT = 5, PRECEDENT = 6, PAUSE = 7, LECTURE = 8;
+
+    /** Ce que la phrase demande : action + nom d'appli dit (null = pas pour le téléphone). */
+    public static final class Demande {
+        public final int action;
+        public final String nom;
+        public boolean verbeMets = false;   // « mets … » : souvent autre chose qu'une appli (minuteur, musique…)
+        Demande(int action, String nom) { this.action = action; this.nom = nom; }
+    }
+
+    private static final Pattern PC = Pattern.compile("\\b(sur|dans) (le|mon|l') ?(pc|ordi|ordinateur|ecran)\\b");
+    private static final Pattern TEL = Pattern.compile("\\s+(sur|dans) (le|mon) (tel|telephone|portable|phone)$");
+    private static final Pattern OUVRE = Pattern.compile(
+            "^(?:tu |t')?(ouvre|ouvrir|ouvres|rouvre|lance|lancer|lances|relance|relancer|relances|remets|remet|demarre|demarrer|affiche|va sur|vas sur|mets|met)( moi)? (.+)$");
+    private static final Pattern FERME = Pattern.compile(
+            "^(?:tu |t')?(ferme|fermer|fermes|quitte|quitter|quittes|arrete|tue|kill|eteins|enleve|enleves|enlever|retire|retires|vire|vires|degage)( moi)? (.+)$");
+    /** « Ai-je à revi ? Ouvre Chrome » : un « Eh Jarvis » abîmé devant l'ordre (jusqu'à 4 mots). */
+    private static final Pattern DEBUT_ABIME = Pattern.compile("^(hey|he|eh|et|ai|euh)\\b[^,.!?]{0,30}?[,.!?]? (?=(ouvre|ouvrir|lance|demarre|ferme|fermer|quitte)\\b)");
+    private static final Pattern ARTICLE = Pattern.compile(
+            "^(l'application |l'appli |l'app |application |appli |app |la page |page |la fenetre |fenetre |l'onglet |onglet |l'|le |la |les |mon |ma |mes |un |une )+");
+    private static final Pattern ACCUEIL_RE = Pattern.compile(
+            "^(ecran d'accueil|accueil|va (a|sur) l'accueil|retourne (a|sur) l'accueil|ferme (tout|toutes les applis|les applis|les applications))$");
+    // Musique du téléphone (02/11 : « musique suivante » partait au PC)
+    private static final Pattern SUIVANT_RE = Pattern.compile(
+            "^((passe (a )?)?(la )?(musique|chanson|titre|son|morceau|piste) suivante?|suivante?|next|zappe|passe|change de (musique|chanson|son))$");
+    private static final Pattern PRECEDENT_RE = Pattern.compile(
+            "^((reviens (a )?)?(la )?(musique|chanson|titre|son|morceau|piste) precedente?|precedente?|reviens en arriere dans la musique)$");
+    private static final Pattern PAUSE_RE = Pattern.compile(
+            "^(pause|mets (la |en )?pause|coupe (la )?(musique|son|zik)|arrete (la )?(musique|zik)|stop (la )?(musique|zik)|mets la musique en pause)$");
+    private static final Pattern LECTURE_RE = Pattern.compile(
+            "^(reprends|reprend|play|lecture|relance (la )?(musique|zik)|remets (la )?(musique|zik)|reprends (la )?(musique|zik))$");
+    private static final Pattern RETOUR_RE = Pattern.compile("^(retour|reviens en arriere|page precedente)$");
+
+    public static Demande comprendre(String phrase) {
+        String n = ReveilTexte.normalise(phrase).replaceAll("[.!?,;]+$", "").trim();
+        if (n.isEmpty() || PC.matcher(n).find()) return null;
+        if (ACCUEIL_RE.matcher(n).matches()) return new Demande(ACCUEIL, "");
+        if (RETOUR_RE.matcher(n).matches()) return new Demande(RETOUR, "");
+        String sansPolitesse = n.replaceAll("( s'il te plait| stp| frere| frerot)$", "");
+        if (SUIVANT_RE.matcher(sansPolitesse).matches()) return new Demande(SUIVANT, "");
+        if (PRECEDENT_RE.matcher(sansPolitesse).matches()) return new Demande(PRECEDENT, "");
+        if (PAUSE_RE.matcher(sansPolitesse).matches()) return new Demande(PAUSE, "");
+        if (LECTURE_RE.matcher(sansPolitesse).matches()) return new Demande(LECTURE, "");
+        n = TEL.matcher(n).replaceFirst("");
+        n = n.replaceAll(",? (s'il te plait|stp|il te plait|frere|frerot)$", "")
+                .replaceAll("^((ok|bon|alors|parfait|super|top|d'accord|merci|nickel|c'est bon|vas y)[,.!]? )+", "");
+        n = TEL.matcher(n).replaceFirst("");
+        n = DEBUT_ABIME.matcher(n).replaceFirst("");
+        Matcher m = OUVRE.matcher(n);
+        int action = OUVRIR;
+        if (!m.matches()) {
+            m = FERME.matcher(n);
+            action = FERMER;
+            if (!m.matches()) return null;
+        }
+        String nom = ARTICLE.matcher(m.group(3)).replaceFirst("").trim();
+        if (nom.length() < 2 || nom.split(" ").length > 4) return null;
+        Demande dm = new Demande(action, nom);
+        dm.verbeMets = m.group(1).startsWith("met");
+        return dm;
+    }
+
+    /**
+     * Ce que Jarvis du PC sait ouvrir lui-même (université, desk, mémoire…) : ces demandes partent au PC.
+     * Tout le reste (« ferme Spotify », « ouvre Waze »), dit au téléphone, agit sur le téléphone (02/11).
+     */
+    private static final Pattern POUR_JARVIS = Pattern.compile(
+            "\\b(universite|desk|chef|salle|bureau|cascade|positions?|ordres?|memoire|agents?|tableau|journal|archiviste|"
+                    + "directeur|veille|ecrans?|mes equipes|dernier projet|projet|camera|oeil|rapport|brief|disposition)\\b");
+
+    /** Demande d'appli à faire sur le téléphone même si l'appli n'est pas trouvée (on ne l'envoie pas au PC). */
+    public static boolean pourLeTelephone(Demande d) {
+        if (d == null) return false;
+        if (d.action != OUVRIR && d.action != FERMER) return true;
+        return !POUR_JARVIS.matcher(d.nom).find() && !d.verbeMets;
+    }
+
+    /** L'appli dont le nom ressemble le plus à ce qui a été dit, ou -1. */
+    public static int trouver(String dit, List<String> noms) {
+        String d = compact(dit);
+        for (String[] syn : SYNONYMES) {
+            if (d.equals(syn[0])) {
+                int i = trouver(syn[1], noms);
+                if (i >= 0) return i;
+            }
+        }
+        if (d.length() < 2) return -1;
+        int best = -1, bestScore = 0;
+        for (int i = 0; i < noms.size(); i++) {
+            String n = compact(noms.get(i));
+            if (n.isEmpty()) continue;
+            int score = 0;
+            if (n.equals(d)) score = 100;
+            else if (n.startsWith(d) && d.length() >= 3) score = 80 - Math.min(20, n.length() - d.length());
+            else if (d.startsWith(n) && n.length() >= 4) score = 70;
+            else if (n.contains(d) && d.length() >= 4) score = 60 - Math.min(20, n.length() - d.length());
+            else if (d.length() >= 4 && distance(n, d) <= (d.length() >= 7 ? 2 : 1)) score = 50;
+            if (score > bestScore) { bestScore = score; best = i; }
+        }
+        return best;
+    }
+
+    private static final String[][] SYNONYMES = {
+            {"camera", "appareil photo"}, {"photo", "appareil photo"}, {"photos", "galerie"},
+            {"sms", "messages"}, {"texto", "messages"}, {"appel", "telephone"}, {"telephone", "telephone"},
+            {"reglages", "parametres"}, {"parametre", "parametres"}, {"parametres", "settings"}, {"reglages", "settings"}, {"youtubemusique", "youtube music"},
+            {"insta", "instagram"}, {"facebook", "facebook"}, {"gmail", "gmail"}, {"mail", "gmail"}};
+
+    /** « You Tube », « what's app » -> « youtube », « whatsapp ». */
+    public static String compact(String s) {
+        return ReveilTexte.normalise(s).replaceAll("[^a-z0-9]", "");
+    }
+
+    static int distance(String a, String b) {
+        int[] prev = new int[b.length() + 1], cur = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++) prev[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            cur[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int c = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
+                cur[j] = Math.min(Math.min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + c);
+            }
+            int[] t = prev; prev = cur; cur = t;
+        }
+        return prev[b.length()];
+    }
+}

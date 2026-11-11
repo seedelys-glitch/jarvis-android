@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_racine"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_fond"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/widget_titre"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="J.A.R.V.I.S."
+        android:textColor="#D6AA55"
+        android:textSize="13sp"
+        android:letterSpacing="0.2"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_texte"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:text="Appuie sur Parler, ou dis « Eh Jarvis »."
+        android:textColor="#F2E6E6"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/widget_parler"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/widget_bouton"
+        android:contentDescription="Parler à Jarvis"
+        android:gravity="center"
+        android:text="🎙  Parler à Jarvis"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+</LinearLayout>

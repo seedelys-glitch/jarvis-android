@@ -231,7 +231,9 @@
   .grand .actions button { font-size: 11.5px; }
 
   /* ===== v3.8 : couleurs et vie ===== */
-  :root { --violet: #b08cff; --cyan: #4fd8d0; --bleu: #6aa8ff; --vert: #5cc58c; --rose: #ff6f91; }
+  /* 5.3 : charte commune (Jarvis PC, université, appli) : plus de violet ni de rose, une seule teinte
+     « info » bleu clair ; l'or et la braise restent les deux couleurs fortes. Texte doux un peu plus clair. */
+  :root { --violet: #f0d296; --cyan: #8fd0ff; --bleu: #8fd0ff; --vert: #5cc58c; --rose: #ff6b5b; --cendre: #a8938f; }
   .c-violet { --acc: var(--violet); } .c-or { --acc: var(--or); } .c-cyan { --acc: var(--cyan); }
   .c-vert { --acc: var(--vert); } .c-bleu { --acc: var(--bleu); } .c-rouge { --acc: #ff7a6e; }
   /* 5.2 : fond « univers noir » (même que l'écran du PC) : étoiles, voie lactée, nébuleuses rouge et or */
@@ -261,10 +263,10 @@
   .wordmark span { background: linear-gradient(90deg, var(--or-clair), var(--or) 45%, #ff9a7a 75%, var(--or-clair));
     background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: reflet 7s linear infinite; }
   @keyframes reflet { to { background-position: -200% 0; } }
-  /* carte du haut : bord dégradé or → rouge → violet */
+  /* carte du haut : bord dégradé or → rouge → or clair */
   .inst { position: relative; border: 0; background: linear-gradient(180deg, rgba(30, 12, 14, .72), rgba(14, 6, 8, .62)); backdrop-filter: blur(8px); }
   .inst::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
-    background: linear-gradient(135deg, rgba(240, 210, 150, .55), rgba(227, 36, 43, .35) 45%, rgba(176, 140, 255, .35) 80%, rgba(240, 210, 150, .2));
+    background: linear-gradient(135deg, rgba(240, 210, 150, .55), rgba(227, 36, 43, .35) 45%, rgba(240, 210, 150, .35) 80%, rgba(240, 210, 150, .2));
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
   /* puces des équipes : une couleur par état, voyant qui pulse quand ça tourne */
   .chip { background: rgba(255, 255, 255, .03); }
@@ -280,7 +282,7 @@
   .camtab::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; will-change: transform;
     background: linear-gradient(100deg, transparent, rgba(255, 240, 210, .16), transparent); animation: balaye 6s ease-in-out infinite; }
   .camtab.desktab::after { animation-delay: 3s; }
-  .camtab.desktab { color: #d9c8ff; border-color: rgba(176, 140, 255, .35); background: linear-gradient(180deg, rgba(176, 140, 255, .12), rgba(176, 140, 255, .03)); }
+  .camtab.desktab { color: #f0d296; border-color: rgba(210, 167, 90, .35); background: linear-gradient(180deg, rgba(210, 167, 90, .12), rgba(210, 167, 90, .03)); }
   /* v5.0 : on fait glisser le reflet (transform) au lieu de changer sa place (left) : plus de recalcul de la page */
   @keyframes balaye { 0%, 70% { transform: none; } 100% { transform: translateX(475%); } }
   /* actions rapides : chaque icône dans sa pastille de couleur */

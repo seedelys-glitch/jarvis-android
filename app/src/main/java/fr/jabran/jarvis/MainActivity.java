@@ -545,6 +545,20 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------------------------------ réseau
+    /** Vrai si le téléphone a une adresse Tailscale (100.64.0.0/10) : le VPN est allumé. */
+    private static boolean tailscaleActif() {
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp()) continue;
+                for (java.net.InetAddress a : java.util.Collections.list(ni.getInetAddresses())) {
+                    byte[] b = a.getAddress();
+                    if (b.length == 4 && (b[0] & 0xff) == 100 && (b[1] & 0xc0) == 64) return true;
+                }
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
     private static boolean reachable(String ip, int port, int ms) {
         if (ip == null || ip.isEmpty()) return false;
         try (Socket so = new Socket()) {
@@ -675,6 +689,9 @@ public class MainActivity extends Activity {
             }
             String ts = prefs.getString("tailscale", "");
             if (reachable(ts, PC_PORT, 2500)) return "http://" + ts + ":" + PC_PORT;
+            // 12/11 : en 4G/5G, Tailscale met parfois plus de 2,5 s à se réveiller et l'appli passait « sans PC »
+            // alors que le PC répondait. Si le VPN est actif sur le téléphone, on laisse une 2e chance, plus longue.
+            if (!ts.isEmpty() && tailscaleActif() && reachable(ts, PC_PORT, 5000)) return "http://" + ts + ":" + PC_PORT;
             return "";
         }
 
@@ -990,6 +1007,32 @@ public class MainActivity extends Activity {
         return r;
     }
 
+    private static final String[] GEMINI_MODELES = {"gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"};
+
+    /** 12/11 (« Gemini : erreur 404 ») : les modèles connus n'existent plus. On demande à Google la liste de ses
+     *  modèles et on ajoute ceux de la famille « flash » qui savent répondre (les plus récents d'abord). */
+    private static void geminiAutresModeles(JSONObject h, ArrayList<String> modeles) {
+        try {
+            String[] l = httpCall("GET", "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", h, "", 15000);
+            if (!"200".equals(l[0])) return;
+            JSONArray d = new JSONObject(l[1]).optJSONArray("models");
+            ArrayList<String> trouves = new ArrayList<>();
+            for (int j = 0; d != null && j < d.length(); j++) {
+                JSONObject m = d.getJSONObject(j);
+                String id = m.optString("name").replace("models/", "");
+                if (!String.valueOf(m.optJSONArray("supportedGenerationMethods")).contains("generateContent")) continue;
+                if (!id.contains("flash") || id.contains("image") || id.contains("tts") || id.contains("live")
+                        || id.contains("audio") || id.contains("embed") || modeles.contains(id)) continue;
+                trouves.add(id);
+            }
+            java.util.Collections.sort(trouves, java.util.Collections.reverseOrder());   // gemini-3… avant gemini-2…
+            ArrayList<String> stables = new ArrayList<>(), essais = new ArrayList<>();
+            for (String id : trouves) (id.contains("preview") || id.contains("exp") ? essais : stables).add(id);
+            modeles.addAll(stables);
+            modeles.addAll(essais);
+        } catch (Exception ignored) { }
+    }
+
     private String[] callGemini(String key, JSONArray msgs, String system, int maxTokens) throws Exception {
         JSONArray contents = new JSONArray();
         for (int i = 0; i < msgs.length(); i++) {
@@ -1007,7 +1050,9 @@ public class MainActivity extends Activity {
         }
         JSONObject h = new JSONObject().put("content-type", "application/json").put("x-goog-api-key", key);
         String[] r = null;
-        for (String model : new String[]{"gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"}) {
+        ArrayList<String> modeles = new ArrayList<>(java.util.Arrays.asList(GEMINI_MODELES));
+        for (int n = 0; n < modeles.size() && n < 6; n++) {
+            String model = modeles.get(n);
             r = httpCall("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + model
                     + ":generateContent", h, b.toString(), 60000);
             if ("200".equals(r[0])) {
@@ -1022,6 +1067,7 @@ public class MainActivity extends Activity {
             }
             // modèle absent, surchargé (503), trop de demandes sur ce modèle (429) : on essaie le suivant
             if (!"404".equals(r[0]) && !"503".equals(r[0]) && !"500".equals(r[0]) && !"429".equals(r[0])) break;
+            if ("404".equals(r[0]) && n == modeles.size() - 1 && n < GEMINI_MODELES.length) geminiAutresModeles(h, modeles);
         }
         return r;
     }
@@ -1042,7 +1088,9 @@ public class MainActivity extends Activity {
         }
         JSONObject h = new JSONObject().put("content-type", "application/json").put("x-goog-api-key", key);
         String[] r = null;
-        for (String model : new String[]{"gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"}) {
+        ArrayList<String> modeles = new ArrayList<>(java.util.Arrays.asList(GEMINI_MODELES));
+        for (int n = 0; n < modeles.size() && n < 6; n++) {
+            String model = modeles.get(n);
             r = httpCall("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + model
                     + ":generateContent", h, b.toString(), 90000);
             if ("200".equals(r[0])) {
@@ -1055,6 +1103,7 @@ public class MainActivity extends Activity {
                 return new String[]{"200", new JSONObject().put("text", sb.toString().trim()).toString()};
             }
             if (!"404".equals(r[0])) break;
+            if (n == modeles.size() - 1 && n < GEMINI_MODELES.length) geminiAutresModeles(h, modeles);
         }
         return r;
     }

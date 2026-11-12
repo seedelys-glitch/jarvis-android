@@ -866,12 +866,16 @@ function faits() { return lit("faits", []); }
 function explique(err) {
   const e = String(err || "");
   const pourquoi = c => c === "429" ? "trop de demandes" : (c === "503" || c === "500") ? "surchargée" : (c === "401" || c === "403") ? "clé refusée"
-    : c === "400" ? "demande refusée" : c === "0" ? "pas de réseau" : "erreur " + c;
+    : c === "400" ? "demande refusée, clé ou crédit à vérifier" : c === "404" ? "modèle introuvable" : c === "402" ? "plus de crédit"
+    : c === "0" ? "pas de réseau" : "erreur " + c;
   const l = [...e.matchAll(/(Groq|Gemini|Grok|DeepSeek|Claude)\s*\((\d+)\)/g)].map(m => m[1] + " : " + pourquoi(m[2]));
   console.log("JarvisIA: " + e);
   if (!l.length) return "Les IA en ligne ne répondent pas pour l'instant. Réessaie dans une minute.";
   const sansGroq = !/Groq/.test(e);
-  return "Les IA ne répondent pas pour l'instant (" + l.join(", ") + "). Réessaie dans une minute." +
+  // 12/11 : si rien ne vient d'une surcharge passagère, « réessaie dans une minute » ne sert à rien : on dit quoi faire
+  const passager = /\((429|503|500|0)\)/.test(e);
+  return "Le PC est injoignable et les IA du téléphone ne répondent pas (" + l.join(", ") + "). " +
+    (passager ? "Réessaie dans une minute." : "Vérifie Tailscale pour joindre le PC, ou tes clés IA dans les réglages.") +
     (sansGroq ? " Astuce : ajoute aussi une clé Groq gratuite dans les réglages, elle prend le relais." : "");
 }
 async function chatClaude(text) {

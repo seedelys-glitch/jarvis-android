@@ -741,6 +741,16 @@ public class EcouteJarvis extends Service {
                         if (!kws.getResult(sEn).getKeyword().isEmpty()) { entendu = true; kws.reset(sEn); }
                     }
                 }
+                if (entendu && pcALaMaison()) {
+                    // 13/11 (Jabran : « chez moi c'est le téléphone qui m'entend et pas le PC ») : à la maison, le PC
+                    // est prioritaire. Le téléphone a entendu « Jarvis » mais il se tait : pas de bip, pas de réponse.
+                    Log.i(TAG, "« Jarvis » entendu, mais le PC est là : je le laisse répondre");
+                    journal("réveil ignoré (le PC de la maison répond) : « " + asr.getResult(sFr).getText().trim() + " »");
+                    ouvert = false;
+                    asr.reset(sFr);
+                    if (sEn != null) { sEn.release(); sEn = kws.createStream(""); }
+                    continue;
+                }
                 if (entendu) {
                     Log.i(TAG, "« Jarvis » entendu : " + asr.getResult(sFr).getText());
                     journal("réveil sur : « " + asr.getResult(sFr).getText().trim() + " »");
@@ -949,6 +959,29 @@ public class EcouteJarvis extends Service {
     }
 
     /** Phrase courte entendue sans réveil : peut-être un « Eh Jarvis » raté (gardé dans le journal pour régler). */
+    static final String PREF_PC_PRIORITAIRE = "pc_prioritaire";   // true par défaut
+    private long pcVuA;
+    private boolean pcVu;
+
+    /** Vrai si le PC de la maison répond sur le réseau local (même Wi-Fi) : c'est lui qui écoute « Jarvis ».
+     *  Jamais par Tailscale : dehors, c'est le téléphone qui répond. Résultat gardé 30 s. */
+    private boolean pcALaMaison() {
+        SharedPreferences p = getSharedPreferences("jarvis", MODE_PRIVATE);
+        if (!p.getBoolean(PREF_PC_PRIORITAIRE, true)) return false;
+        long t = System.currentTimeMillis();
+        if (t - pcVuA < 30_000) return pcVu;
+        pcVuA = t;
+        pcVu = false;
+        String ip = p.getString("ip", "");
+        if (!ip.isEmpty()) {
+            try (java.net.Socket so = new java.net.Socket()) {
+                so.connect(new java.net.InetSocketAddress(ip, 8765), 600);
+                pcVu = true;
+            } catch (Exception ignored) { }
+        }
+        return pcVu;
+    }
+
     private static void pasReveille(String t) {
         noteEntendu(t);
         if (t != null && !t.trim().isEmpty() && t.trim().split("\\s+").length <= 5) journal("pas réveillé : « " + t.trim() + " »");

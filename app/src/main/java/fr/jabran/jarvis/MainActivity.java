@@ -443,6 +443,12 @@ public class MainActivity extends Activity {
         alertes.setChecked(prefs.getBoolean(AlertesTradingView.PREF, true));
         alertes.setPadding(0, 18, 0, 0);
         box.addView(alertes);
+        // 20/11 : trades de l'université (conversation Telegram « Jarvis Trades ») dits à voix haute
+        android.widget.CheckBox trades = new android.widget.CheckBox(this);
+        trades.setText("Dire à voix haute les entrées et sorties de trade de l'université (Telegram « Jarvis Trades »)");
+        trades.setChecked(prefs.getBoolean(AnnoncesTrades.PREF, true));
+        trades.setPadding(0, 12, 0, 0);
+        box.addView(trades);
         if (!acces) {
             android.widget.Button autoriser = new android.widget.Button(this);
             autoriser.setText("Autoriser Jarvis à lire les notifications");
@@ -519,6 +525,7 @@ public class MainActivity extends Activity {
                     int sel = pref.getSelectedItemPosition();
                     ed.putString("ia_pref", sel <= 0 ? "auto" : IA_IDS[sel - 1]);
                     ed.putBoolean(AlertesTradingView.PREF, alertes.isChecked());
+                    ed.putBoolean(AnnoncesTrades.PREF, trades.isChecked());
                     ed.putBoolean(EcouteJarvis.PREF, reveil.isChecked());
                     ed.putBoolean(Montre.PREF, montre.isChecked());
                     ed.apply();

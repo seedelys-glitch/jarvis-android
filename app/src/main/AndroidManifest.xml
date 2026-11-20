@@ -100,7 +100,7 @@
         <!-- Alertes TradingView du téléphone lues à voix haute (AlertesTradingView.java) -->
         <service
             android:name=".AlertesTradingView"
-            android:label="Jarvis : alertes TradingView à voix haute"
+            android:label="Jarvis : alertes TradingView et trades à voix haute"
             android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>

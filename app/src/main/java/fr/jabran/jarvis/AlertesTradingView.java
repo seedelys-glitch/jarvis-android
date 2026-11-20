@@ -22,6 +22,9 @@ import java.util.Map;
  * à chaque nouvelle notification. On ne lit QUE les notifications de TradingView, rien d'autre,
  * et rien ne sort du téléphone.
  *
+ * 20/11/2026 : lit aussi les trades de l'université envoyés par le PC dans la conversation Telegram
+ * « Jarvis Trades » (et AUCUNE autre conversation Telegram) : voir AnnoncesTrades.java.
+ *
  * À faire une fois : Réglages de Jarvis > « Lire les alertes TradingView » > autoriser l'accès
  * aux notifications pour Jarvis.
  */
@@ -88,12 +91,26 @@ public class AlertesTradingView extends NotificationListenerService {
         return s;
     }
 
+    /** Telegram range les messages en « conversation » : on prend le dernier reçu, en entier. */
+    private static CharSequence dernierMessage(Bundle ex) {
+        try {
+            android.os.Parcelable[] msgs = ex.getParcelableArray(Notification.EXTRA_MESSAGES);
+            if (msgs == null || msgs.length == 0) return null;
+            Object m = msgs[msgs.length - 1];
+            if (m instanceof Bundle) return ((Bundle) m).getCharSequence("text");
+        } catch (Exception ignored) { }
+        return null;
+    }
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         try {
-            if (sbn == null || !estTradingView(sbn.getPackageName())) return;
+            if (sbn == null) return;
+            String paquet = sbn.getPackageName();
+            boolean tv = estTradingView(paquet), telegram = AnnoncesTrades.estTelegram(paquet);
+            if (!tv && !telegram) return;
             SharedPreferences prefs = getSharedPreferences("jarvis", MODE_PRIVATE);
-            if (!prefs.getBoolean(PREF, true)) return;
+            if (!prefs.getBoolean(tv ? PREF : AnnoncesTrades.PREF, true)) return;
             Notification n = sbn.getNotification();
             if (n == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;  // résumé de groupe : déjà dit
             Bundle ex = n.extras;
@@ -101,8 +118,18 @@ public class AlertesTradingView extends NotificationListenerService {
             CharSequence titre = ex.getCharSequence(Notification.EXTRA_TITLE);
             CharSequence texte = ex.getCharSequence(Notification.EXTRA_BIG_TEXT);
             if (texte == null || texte.length() == 0) texte = ex.getCharSequence(Notification.EXTRA_TEXT);
-            if ((titre == null || titre.length() == 0) && (texte == null || texte.length() == 0)) return;
-            String p = phrase(titre, texte);
+            String p;
+            if (telegram) {
+                // 20/11 : trades de l'université, conversation « Jarvis Trades » seulement (AnnoncesTrades.java)
+                CharSequence dernier = dernierMessage(ex);
+                if (dernier != null && dernier.length() > 0) texte = dernier;
+                p = AnnoncesTrades.phrase(paquet, titre,
+                        ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE), texte);
+                if (p == null) return;
+            } else {
+                if ((titre == null || titre.length() == 0) && (texte == null || texte.length() == 0)) return;
+                p = phrase(titre, texte);
+            }
             long now = System.currentTimeMillis();
             synchronized (recents) {
                 Iterator<Map.Entry<String, Long>> it = recents.entrySet().iterator();

@@ -62,6 +62,13 @@
   @keyframes rec { 50% { opacity: .15; } }
   .camtab svg.i { width: 19px; height: 19px; }
   .camtab.desktab .rec { display: none; }
+  /* 5.7 : trois onglets (Université 3D, Chefs d'agents, Positions) : plus serrés sur les petits écrans */
+  .tabs .camtab { min-width: 0; padding: 0 8px; gap: 6px; }
+  .tabs .camtab span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 400px) { .tabs .camtab { font-size: 14px; letter-spacing: .03em; } .tabs .camtab svg.i { display: none; } }
+  .camtab.postab .rec { display: none; background: #5cc58c; box-shadow: 0 0 6px #5cc58c; }
+  .camtab.postab.en-position .rec { display: block; }
+  .camtab.postab::after { animation-delay: 1.5s; }
 
   /* en haut : mes équipes, le gold en petit à droite, puis journée et ruban (une carte qu'on peut replier) */
   .inst { margin: 0 12px; padding: 12px 14px 10px; border-radius: 18px; background: var(--verre); border: 1px solid var(--trait); }
@@ -369,6 +376,7 @@
 <div class="tabs">
   <button class="camtab needpc press" id="camTab" type="button" aria-label="Voir l'Université MGC en 3D"><i class="rec" aria-hidden="true"></i><svg class="i" aria-hidden="true"><use href="#i-cam"/></svg><span>Université 3D</span></button>
   <button class="camtab desktab needpc press" id="deskTab" type="button" aria-label="Parler au chef de desk et au directeur"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg><span>Chefs d'agents</span></button>
+  <button class="camtab postab needpc press" id="posTab" type="button" aria-label="Voir si les traders sont en position et leurs résultats"><i class="rec pos-led" id="posLed" aria-hidden="true"></i><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg><span>Positions</span></button>
 </div>
 
 <section class="inst" id="inst" aria-label="Mes équipes, gold et journée">
@@ -422,6 +430,7 @@
     <button type="submit" class="press">OK</button>
   </form>
   <div class="group c-violet"><h3>Chef d'orchestre</h3><div class="tiles">
+    <button type="button" class="press tile needpc" id="posBtn"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Positions des traders</button>
     <button type="button" class="press tile needpc" id="chefBtn"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Mes agents</button>
     <button type="button" class="press tile needpc" id="camBtn"><svg class="i" aria-hidden="true"><use href="#i-cam"/></svg>Caméra de l'université</button>
     <button type="button" class="press tile needpc" id="deskBtn"><svg class="i" aria-hidden="true"><use href="#i-desk"/></svg>Chef de desk et directeur</button>
@@ -470,6 +479,13 @@
   <div class="row"><button type="button" data-close>Fermer</button></div>
 </div></div>
 
+<div class="modal" id="posModal"><div role="dialog" aria-modal="true" aria-labelledby="posTitre" tabindex="-1" class="sheet">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="posTitre">Positions</h2>
+  <div id="posBody" aria-live="polite"></div>
+  <div class="row"><button type="button" data-close>Fermer</button></div>
+</div></div>
+
 <div class="modal" id="camModal"><div role="dialog" aria-modal="true" aria-label="Caméra de l'Université MGC" tabindex="-1" class="sheet cam-sheet">
   <div class="handle" aria-hidden="true"></div>
   <div class="cam-ecran" id="camEcran"></div>
@@ -514,6 +530,7 @@
 <script src="ruban.js"></script>
 <script src="tableau.js"></script>
 <script src="desk.js"></script>
+<script src="positions.js"></script>
 <script>
 // Menu déroulant des actions de Jarvis (écran du PC, appli web) : choisir une action sans parler.
 // Chaque action est une phrase envoyée à Jarvis, exactement comme si tu la disais.
@@ -1280,6 +1297,47 @@ new MutationObserver(() => { if (!$("deskModal").classList.contains("open") && D
   .observe($("deskModal"), { attributes: true, attributeFilter: ["class"] });
 $("deskTab").addEventListener("click", openDesk);
 $("deskBtn").addEventListener("click", openDesk);
+// Onglet Positions (5.7) : les traders de l'université sont-ils en position, et leurs résultats.
+// LECTURE SEULE : on lit /api/trading et /api/demo de l'université par le relais de Jarvis (même accès que la caméra).
+let UNIV = null, POS_MIN = null;
+async function univApi(chemin) {
+  for (let essai = 0; essai < 2; essai++) {
+    if (!UNIV) UNIV = (await pcApi("/api/universite/acces", {}, 8000)).chemin;   // « /universite/k/<jeton>/ »
+    const r = await nativeHttp("GET", PC + UNIV + chemin, {}, "", 15000);
+    if (r.status === 401) { UNIV = null; continue; }   // accès expiré : on en redemande un
+    if (r.status === 503) throw new Error("univ");
+    if (r.status !== 200) throw new Error("pc");
+    return JSON.parse(r.body);
+  }
+  throw new Error("pc");
+}
+async function majPositions(premiere) {
+  const body = $("posBody");
+  if (premiere) body.textContent = "Je regarde les positions…";
+  try {
+    const trading = await univApi("api/trading");
+    let demo = null; try { demo = await univApi("api/demo"); } catch (e) {}
+    Positions.dessiner(body, trading, demo, GOLD && GOLD.price);
+    $("posTab").classList.toggle("en-position", !!(trading.positions || []).length);
+  } catch (e) {
+    if (!premiere && body.querySelector(".ps")) return;   // on garde le dernier affichage si une mise à jour rate
+    body.textContent = e.message === "code" ? "Code de l'appli incorrect (Réglages)."
+      : e.message === "univ" ? "L'université ne tourne pas sur le PC pour l'instant."
+      : "Le PC ne répond pas (ou Jarvis n'est pas à jour).";
+  }
+}
+async function openPositions() {
+  closeSheets();
+  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : les positions des traders sont sur le PC.", "jarvis"); return; }
+  openSheet("posModal");
+  clearInterval(POS_MIN);
+  await majPositions(true);
+  POS_MIN = setInterval(() => { if (!document.hidden && $("posModal").classList.contains("open")) majPositions(false); }, 20000);
+}
+new MutationObserver(() => { if (!$("posModal").classList.contains("open")) { clearInterval(POS_MIN); POS_MIN = null; } })
+  .observe($("posModal"), { attributes: true, attributeFilter: ["class"] });
+$("posTab").addEventListener("click", openPositions);
+$("posBtn").addEventListener("click", openPositions);
 // Menu déroulant : une action choisie = la même phrase que si tu la disais
 fillActions($("actSel"));
 $("actForm").addEventListener("submit", (e) => {

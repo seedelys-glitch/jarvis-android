@@ -759,13 +759,27 @@ function trouverPc() {
   if (!A.findPcAsync) return Promise.resolve(A.findPc() || "");   // ancienne appli : recherche bloquante
   return new Promise(res => { const id = "p" + (++seq); pending[id] = (r) => res(r.body || ""); A.findPcAsync(id); });
 }
+// 24/11 : dehors, dire POURQUOI le PC ne répond pas (Tailscale coupé sur le téléphone, ou PC endormi/éteint)
+let SANS_PC = "";
+function raisonSansPc() { try { return A.pourquoiSansPc ? A.pourquoiSansPc() : ""; } catch (e) { return ""; } }
+function explicationSansPc() {
+  if (SANS_PC === "vpn") return "Tailscale est coupé sur ton téléphone : sans lui, je ne peux pas joindre le PC depuis la 4G. Touche « Sans le PC » en haut pour l'ouvrir et l'allumer.";
+  if (SANS_PC === "adresse") return "Je ne connais pas encore l'adresse Tailscale du PC : ouvre l'appli une fois à la maison (Wi-Fi), je la retiens toute seule.";
+  if (SANS_PC === "pc") return "Tailscale marche sur ton téléphone, mais le PC ne répond pas : il est sûrement en vraie veille ou éteint (ou Jarvis s'est arrêté). Je marche sans lui.";
+  return "Le PC est éteint ou loin : je marche sans lui.";
+}
+function injoignable() {
+  return SANS_PC === "vpn" ? "Tailscale est coupé sur ton téléphone (touche « Sans le PC » en haut pour l'allumer)" : "Le PC est éteint ou injoignable";
+}
 function detectPc() {
   if (recherche) return recherche;   // une seule recherche à la fois
   recherche = trouverPc().then(adr => {
     PC = adr || null;
     $("dot").classList.toggle("on", !!PC);
     document.body.classList.toggle("nopc", !PC);
-    $("state").textContent = PC ? (PC.includes("100.") ? "PC à distance" : "PC à la maison") : "Sans le PC";
+    SANS_PC = PC ? "" : raisonSansPc();
+    $("state").textContent = PC ? (PC.includes("100.") ? "PC à distance" : "PC à la maison")
+      : (SANS_PC === "vpn" ? "Sans le PC · Tailscale coupé" : SANS_PC === "pc" ? "Sans le PC · PC endormi ?" : "Sans le PC");
     return PC;
   }).finally(() => { recherche = null; });
   return recherche;
@@ -1230,12 +1244,17 @@ $("form").addEventListener("submit", (e) => { e.preventDefault(); const t = $("i
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-cmd]"); if (!b) return;
   vibre(); closeSheets();
-  if (b.dataset.pc && !PC) { add("Le PC est éteint ou injoignable. Touche « Plus », puis « Rallumer le PC ».", "jarvis"); return; }
+  if (b.dataset.pc && !PC) { add(injoignable() + ". Touche « Plus », puis « Rallumer le PC ».", "jarvis"); return; }
   handle(b.dataset.cmd);
 });
 $("voiceBtn").addEventListener("click", () => { speakOn = !speakOn; try { localStorage.setItem("voice", speakOn ? "1" : "0"); } catch (e) {} showVoice(); if (!speakOn) A.stopSpeak(); });
 $("setBtn").addEventListener("click", () => A.settings());
-$("link").addEventListener("click", async () => { $("state").textContent = "Recherche…"; await detectPc(); refresh(true); refreshEquipes(); });
+$("link").addEventListener("click", async () => {
+  if (!PC && SANS_PC === "vpn" && A.ouvrirTailscale) {   // Tailscale coupé : on l'ouvre, la recherche repart au retour
+    if (A.ouvrirTailscale()) { add("J'ouvre Tailscale : allume-le, puis reviens ici.", "jarvis"); return; }
+    add("L'appli Tailscale n'est pas sur ce téléphone : installe-la depuis le Play Store, avec le même compte que le PC.", "jarvis");
+  }
+  $("state").textContent = "Recherche…"; await detectPc(); refresh(true); refreshEquipes(); });
 // carte du haut repliable : plus de place pour la conversation (retenu d'une fois sur l'autre)
 function plier(oui) {
   $("inst").classList.toggle("plie", oui);
@@ -1248,7 +1267,7 @@ $("moreBtn").addEventListener("click", () => openSheet("moreModal"));
 // Chef d'orchestre : la liste des agents (sur le PC), avec leurs boutons
 async function openChef() {
   closeSheets();
-  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : les agents tournent sur le PC.", "jarvis"); return; }
+  if (!PC && !(await detectPc())) { add(injoignable() + " : les agents tournent sur le PC.", "jarvis"); return; }
   openSheet("chefModal"); const body = $("chefBody"); body.textContent = "Chargement…";
   const act = async (id, action) => {
     const d = await pcApi("/api/agents", { id, action });
@@ -1261,7 +1280,7 @@ $("chefBtn").addEventListener("click", openChef);
 let CAM = null;
 async function openCam() {
   closeSheets();
-  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : l'université est sur le PC.", "jarvis"); return; }
+  if (!PC && !(await detectPc())) { add(injoignable() + " : l'université est sur le PC.", "jarvis"); return; }
   openSheet("camModal");
   $("camEcran").textContent = ""; $("camListe").textContent = "Connexion à l'université…";
   try {
@@ -1281,7 +1300,7 @@ $("camBtn").addEventListener("click", openCam);
 let DESK = null;
 async function openDesk() {
   closeSheets();
-  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : le chef de desk est sur le PC.", "jarvis"); return; }
+  if (!PC && !(await detectPc())) { add(injoignable() + " : le chef de desk est sur le PC.", "jarvis"); return; }
   openSheet("deskModal");
   if (DESK) DESK.detruire();
   DESK = DeskChat.creer($("deskChat"), {
@@ -1328,7 +1347,7 @@ async function majPositions(premiere) {
 }
 async function openPositions() {
   closeSheets();
-  if (!PC && !(await detectPc())) { add("Le PC est éteint ou injoignable : les positions des traders sont sur le PC.", "jarvis"); return; }
+  if (!PC && !(await detectPc())) { add(injoignable() + " : les positions des traders sont sur le PC.", "jarvis"); return; }
   openSheet("posModal");
   clearInterval(POS_MIN);
   await majPositions(true);
@@ -1470,7 +1489,7 @@ try { if (A.echelleTexte && A.echelleTexte() > 1.15) document.body.classList.add
 goldPrice().then(g => { if (g) montrerGold(g); }).catch(() => {});
 (async () => {
   await detectPc();
-  add(PC ? "Salam Jabran. Je suis connecté à ton PC." : "Salam Jabran. Le PC est éteint ou loin : je marche sans lui. Prix, actus, annonces et discussion fonctionnent.", "jarvis");
+  add(PC ? "Salam Jabran. Je suis connecté à ton PC." : "Salam Jabran. " + explicationSansPc() + " Prix, actus, annonces et discussion fonctionnent.", "jarvis");
   refresh(true); refreshEquipes();
   // une seule horloge ; rien ne tourne quand l'appli est cachée (batterie et données)
   let tour = 0;

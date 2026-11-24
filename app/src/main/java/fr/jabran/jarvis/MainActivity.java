@@ -702,6 +702,26 @@ public class MainActivity extends Activity {
             return "";
         }
 
+        /** 24/11 : pourquoi le PC n'est pas joint, pour le dire clairement à Jabran.
+         *  "vpn" = Tailscale n'est pas allumé sur le téléphone ; "adresse" = adresse Tailscale du PC pas encore connue ;
+         *  "pc" = Tailscale marche sur le téléphone mais le PC ne répond pas (endormi, éteint ou Jarvis arrêté). */
+        @JavascriptInterface
+        public String pourquoiSansPc() {
+            if (!tailscaleActif()) return "vpn";
+            if (prefs.getString("tailscale", "").isEmpty()) return "adresse";
+            return "pc";
+        }
+
+        /** Ouvre l'appli Tailscale du téléphone (pour l'allumer d'un geste). Faux si elle n'est pas installée. */
+        @JavascriptInterface
+        public boolean ouvrirTailscale() {
+            Intent i = getPackageManager().getLaunchIntentForPackage("com.tailscale.ipn");
+            if (i == null) return false;
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            runOnUiThread(() -> { try { startActivity(i); } catch (Exception ignored) { } });
+            return true;
+        }
+
         /** Même recherche que findPc, mais sans figer la page : la réponse revient dans window.__native. */
         @JavascriptInterface
         public void findPcAsync(String id) {

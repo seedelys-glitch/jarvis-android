@@ -1,7 +1,8 @@
 // Onglet « Positions » (appli 5.7, demandé par Jabran le 24/11) : les traders de l'université sont-ils en position,
 // et quels sont leurs résultats. LECTURE SEULE : aucun bouton n'envoie d'ordre, c'est de l'argent fictif (démo).
 // Données : /api/trading et /api/demo de l'université (relayées par Jarvis sur /universite/k/<jeton>/).
-// Positions.dessiner(element, trading, demo, prixGold) — trading obligatoire, demo et prixGold facultatifs.
+// Positions.dessiner(element, trading, demo, prixGold, entraide) — trading obligatoire, le reste facultatif.
+// entraide = { messages: /api/messages } (27/11) : qui aide qui, leçons après chaque trade.
 (function () {
   const CSS = `
   .ps { color: var(--os, #f2e7e2); font-variant-numeric: tabular-nums; }
@@ -42,6 +43,19 @@
   .up { color: var(--gain, #5cc58c); } .down { color: var(--braise-vive, #ff4a3d); }
   .ps-vide { padding: 4px 0 8px; color: rgba(242, 231, 226, .7); font-size: 14px; line-height: 1.45; }
   .ps-note { margin-top: 16px; font-size: 12.5px; line-height: 1.45; color: var(--cendre, #a48f8b); }
+  .ps-msg { padding: 10px 0; border-bottom: 1px solid rgba(210, 167, 90, .08); }
+  .ps-msg:last-child { border-bottom: 0; }
+  .ps-msg-haut { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+  .ps-msg-haut b { font-weight: 600; }
+  .ps-msg-haut time { color: var(--cendre, #a48f8b); font-size: 12.5px; white-space: nowrap; }
+  .ps-genre { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; vertical-align: 1px;
+    color: var(--cendre, #a48f8b); border: 1px solid rgba(242, 231, 226, .14); }
+  .ps-genre.lecon, .ps-genre.examen { color: #d2a75a; border-color: rgba(210, 167, 90, .45); }
+  .ps-genre.reponse { color: var(--gain, #5cc58c); border-color: rgba(92, 197, 140, .45); }
+  .ps-genre.alerte { color: var(--braise-vive, #ff4a3d); border-color: rgba(255, 74, 61, .45); }
+  .ps-msg p { margin: 4px 0 0; font-size: 14px; line-height: 1.4; color: rgba(242, 231, 226, .88);
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .ps-msg.ouvert p { -webkit-line-clamp: unset; }
   @media (max-width: 340px) { .ps-niv { grid-template-columns: repeat(2, 1fr); } }
   @media (prefers-reduced-motion: reduce) { .ps-etat.oui .ps-led { animation: none; } }`;
   const POINT = 10;  // micro or (MGC) : 1 point = 10 $ par contrat
@@ -131,7 +145,42 @@
     return r;
   }
 
-  function dessiner(racine, trading, demo, prix) {
+  // 27/11 : l'entraide entre agents (table « messages » de l'université : leçons, bravos, demandes, cours…)
+  const PRENOMS = { 1: "Sacha", 2: "Léa", 3: "Kenji", 4: "Iris", 5: "Victor", 6: "Nora", 7: "Malik", 8: "Hélène", 9: "Théo",
+    10: "Camille", 11: "Gabriel", 12: "Inès", 13: "Hugo", 14: "Arthur", 15: "Alice", 16: "Basile", 17: "Margaux", 18: "Élise", 19: "Bastien" };
+  const GENRES = { reponse: "réponse", lecon: "leçon", demande: "demande", cours: "cours", reunion: "réunion",
+    examen: "examen", alerte: "alerte", agent: "message" };
+  function prenom(n, noms) {
+    const k = Number(n);
+    return (noms && noms[k]) || PRENOMS[k] || ("Agent " + n);
+  }
+  // Les derniers échanges, du plus récent au plus ancien (rien n'est inventé : texte tel que l'agent l'a écrit)
+  function echanges(messages, max) {
+    return (Array.isArray(messages) ? messages : []).filter(m => m && m.contenu && m.de != null && m.a != null)
+      .slice().sort((x, y) => (y.ts || 0) - (x.ts || 0)).slice(0, max || 15);
+  }
+  function blocEntraide(entraide) {
+    const liste = echanges(entraide && entraide.messages, 15);
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("h3", "", "Entraide entre agents"));
+    if (!entraide) { frag.appendChild(el("p", "ps-vide", "Les échanges des agents ne sont pas arrivés (Jarvis ou l'université pas à jour).")); return frag; }
+    if (!liste.length) { frag.appendChild(el("p", "ps-vide", "Pas encore d'échange entre les agents.")); return frag; }
+    for (const m of liste) {
+      const d = el("div", "ps-msg");
+      const haut = el("div", "ps-msg-haut");
+      const qui = el("span");
+      qui.append(el("b", "", prenom(m.de, entraide.noms)), " → ", el("b", "", prenom(m.a, entraide.noms)));
+      const g = String(m.genre || "");
+      qui.appendChild(el("span", "ps-genre " + g, GENRES[g] || g || "message"));
+      haut.append(qui, el("time", "", heure(m.ts)));
+      d.append(haut, el("p", "", String(m.contenu)));
+      d.addEventListener("click", () => d.classList.toggle("ouvert"));
+      frag.appendChild(d);
+    }
+    return frag;
+  }
+
+  function dessiner(racine, trading, demo, prix, entraide) {
     if (!document.getElementById("ps-style")) {
       const st = document.createElement("style"); st.id = "ps-style"; st.textContent = CSS; document.head.appendChild(st);
     }
@@ -179,10 +228,12 @@
         box.appendChild(r);
       }
     }
+    // 5. l'entraide entre agents (27/11)
+    if (entraide !== undefined) box.appendChild(blocEntraide(entraide));
     box.appendChild(el("p", "ps-note", "Démo seulement : argent fictif, aucun ordre n'est passé. Cet onglet ne fait que regarder, il se met à jour tout seul toutes les 20 secondes."));
     racine.textContent = "";
     racine.appendChild(box);
   }
 
-  window.Positions = { dessiner, lire, latent };
+  window.Positions = { dessiner, lire, latent, echanges, prenom };
 })();

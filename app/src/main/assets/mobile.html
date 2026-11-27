@@ -1336,7 +1336,8 @@ async function majPositions(premiere) {
   try {
     const trading = await univApi("api/trading");
     let demo = null; try { demo = await univApi("api/demo"); } catch (e) {}
-    Positions.dessiner(body, trading, demo, GOLD && GOLD.price);
+    let entraide = null; try { entraide = { messages: await univApi("api/messages") }; } catch (e) {}   // 27/11
+    Positions.dessiner(body, trading, demo, GOLD && GOLD.price, entraide);
     $("posTab").classList.toggle("en-position", !!(trading.positions || []).length);
   } catch (e) {
     if (!premiere && body.querySelector(".ps")) return;   // on garde le dernier affichage si une mise à jour rate

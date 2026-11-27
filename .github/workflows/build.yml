@@ -64,6 +64,7 @@ jobs:
           java -cp /tmp/t AmelioreTest
           java -cp /tmp/t AnnoncesTradesTest
           node tests/competences.test.js
+          node tests/positions.test.js
       - name: Construire
         run: gradle assembleDebug --no-daemon
       - name: Renommer
